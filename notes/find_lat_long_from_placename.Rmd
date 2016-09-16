@@ -1,0 +1,14 @@
+# Find lat/long from placename
+
+## Using `geonames` package/database
+
+An account with geonames is needed for this to work.
+
+http://andybeger.com/2013/08/06/finding-coordinates-for-cities-etc-with-r/
+
+```{r}
+library(geonames)
+options(geonamesUsername="fosterz")
+places <- GNsearch(name="prineville reservoir")  
+```
+

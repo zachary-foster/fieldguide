@@ -1,0 +1,40 @@
+---
+title: "Retreiving and rendering wikipedia"
+author: "Zachary Foster"
+date: "September 15, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Getting the page text
+
+### downloading content
+
+```{r}
+
+wp_content <- WikipediR::page_content("en","wikipedia", page_name ="holodiscus discolor")
+str(wp_content)
+```
+
+### Saving to a file
+
+Simply saving the content does not render images or links correctly:
+
+```{r}
+writeChar(wp_content$parse$text[["*"]], con= "test.html")
+```
+
+* all links are realtive, so they dont work. 
+* css is not there
+
+CSS files can be found here: https://en.wikipedia.org/wiki/Wikipedia:Catalogue_of_CSS_classes
+
+
+### using wkhtmltopdf
+
+To convert html to pdf: http://wkhtmltopdf.org
+
+This can take multiple html files and convert it to a single pdf
