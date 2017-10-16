@@ -17,7 +17,10 @@
 search_area <- function(lat_range,
                         long_range,
                         taxon = NULL,
-                        max_occ = 5000) {
+                        max_occ = 10000) {
+  # Internal parameters
+  common_name_db <- "itis" # In increasing order of number of common names: ncbi, itis, eol. ncbi also can do internal taxa
+
   # Search for species in range
   my_print("Searching GBIF for observation records...\n")
   gbif_occ <- rgbif::occ_search(decimalLatitude = lat_range,
@@ -30,12 +33,32 @@ search_area <- function(lat_range,
   # Filter out unneed columns
   gbif_occ <- gbif_occ[, c("name", "scientificName", "kingdom", "phylum", "order", "family", "genus", "species")]
 
+  # Add root to the taxonomy
+  gbif_occ$root <- "Life"
+
   # Make unique
   gbif_occ <- unique(gbif_occ)
 
+  # Remove any taxa with no species information
+  gbif_occ <- gbif_occ[! is.na(gbif_occ$species), ]
+
+  # Get common name
+  my_print("Looking up common names from ", toupper(common_name_db), "...\n")
+  common_name <- taxize::sci2comm(gbif_occ$name, db = common_name_db,
+                                           verbose = FALSE, ask = FALSE, rows = 1)
+
+  common_name <- lapply(common_name, function(x) {
+    x <- x[!is.na(x)]
+    if (length(x) > 0) {
+      x <- Hmisc::capitalize(x)
+      x <- unique(x)
+    }
+    return(x)
+  })
+
   # Convert to taxmap
   output <- suppressWarnings(taxa::parse_tax_data(gbif_occ,
-                                                  class_cols = c("kingdom", "phylum", "order", "family", "genus", "species")))
+                                                  class_cols = c("root", "kingdom", "phylum", "order", "family", "genus", "species")))
 
   # Print results
   my_print("Found ", nrow(gbif_occ), " species.")
@@ -59,7 +82,7 @@ search_area <- function(lat_range,
 #'
 #' @export
 search_radius <- function(lat, long, radius = 40, taxon = NULL,
-                          max_occ = 1000) {
+                          max_occ = 10000) {
   # Get range of coords to search
   location <- as.numeric(c(lat, long))
   lat_diff <- abs(radius / 110.574 / 2) # http://stackoverflow.com/questions/1253499/simple-calculations-for-working-with-lat-lon-km-distance
@@ -96,7 +119,7 @@ search_place <- function(place_name,
                          radius = 40,
                          taxon = NULL,
                          ask = FALSE,
-                         max_occ = 1000) {
+                         max_occ = 10000) {
 
   # Check that the user has registered their user name
   if (! "geonamesUsername" %in% names(options())) {
