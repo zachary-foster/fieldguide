@@ -2,23 +2,30 @@
 #'
 #' Return species for a coordinate range according to GBIF.
 #'
-#' @param lat_range (\code{numeric} of length 2) The range of latitudes to search species occurance data for.
-#' @param long_range (\code{numeric} of length 2) The range of longitudes to search species occurance data for.
+#' @param lat_range (\code{numeric} of length 2) The range of latitudes to
+#'   search species occurance data for.
+#' @param long_range (\code{numeric} of length 2) The range of longitudes to
+#'   search species occurance data for.
 #' @param taxon (\code{character} of length 1) A taxon name to search for.
+#' @param max_occ (\code{numeric} of length 1) The maximum number of occurances
+#'   to retreive in order to determine which species are present. A larger
+#'   number might return more species. There is a hard maximum of 200,000.
 #'
 #' @return Path to the output file
 #'
 #' @export
 search_area <- function(lat_range,
                         long_range,
-                        taxon = NULL) {
+                        taxon = NULL,
+                        max_occ = 5000) {
   # Search for species in range
+  my_print("Searching GBIF for observation records...\n")
   gbif_occ <- rgbif::occ_search(decimalLatitude = lat_range,
                                 decimalLongitude = long_range,
                                 hasCoordinate = TRUE,
                                 return = "data",
                                 scientificName = taxon,
-                                limit = 10000)
+                                limit = max_occ)
 
   # Filter out unneed columns
   gbif_occ <- gbif_occ[, c("name", "scientificName", "kingdom", "phylum", "order", "family", "genus", "species")]
@@ -30,6 +37,8 @@ search_area <- function(lat_range,
   output <- suppressWarnings(taxa::parse_tax_data(gbif_occ,
                                                   class_cols = c("kingdom", "phylum", "order", "family", "genus", "species")))
 
+  # Print results
+  my_print("Found ", nrow(gbif_occ), " species.")
   return(output)
 }
 
@@ -42,11 +51,15 @@ search_area <- function(lat_range,
 #' @param lat_range (\code{numeric} of length 2) The range of latitudes to search species occurance data for.
 #' @param radius (\code{numeric} of length 1) How far in kilometers from \code{place_name} to look for species.
 #' @param taxon (\code{character} of length 1) A taxon name to search for.
+#' @param max_occ (\code{numeric} of length 1) The maximum number of occurances
+#'   to retreive in order to determine which species are present. A larger
+#'   number might return more species. There is a hard maximum of 200,000.
 #'
 #' @return Path to the output file
 #'
 #' @export
-search_radius <- function(lat, long, radius = 40, taxon = NULL) {
+search_radius <- function(lat, long, radius = 40, taxon = NULL,
+                          max_occ = 1000) {
   # Get range of coords to search
   location <- as.numeric(c(lat, long))
   lat_diff <- abs(radius / 110.574 / 2) # http://stackoverflow.com/questions/1253499/simple-calculations-for-working-with-lat-lon-km-distance
@@ -55,7 +68,7 @@ search_radius <- function(lat, long, radius = 40, taxon = NULL) {
   long_range <- paste(location[2] - long_diff, location[2] + long_diff, sep = ",")
 
   # Search area
-  search_area(lat_range = lat_range, long_range = long_range, taxon = taxon)
+  search_area(lat_range = lat_range, long_range = long_range, taxon = taxon, max_occ = max_occ)
 }
 
 
@@ -67,6 +80,9 @@ search_radius <- function(lat, long, radius = 40, taxon = NULL) {
 #' @param radius (\code{numeric} of length 1) How far in kilometers from \code{place_name} to look for species.
 #' @param taxon (\code{character} of length 1) A taxon name to search for.
 #' @param ask (\code{logical}) if \code{TRUE}, ask the user questions when there are ambiguities.
+#' @param max_occ (\code{numeric} of length 1) The maximum number of occurances
+#'   to retreive in order to determine which species are present. A larger
+#'   number might return more species. There is a hard maximum of 200,000.
 #'
 #' @return Path to the output file
 #'
@@ -79,8 +95,17 @@ search_radius <- function(lat, long, radius = 40, taxon = NULL) {
 search_place <- function(place_name,
                          radius = 40,
                          taxon = NULL,
-                         ask = FALSE) {
+                         ask = FALSE,
+                         max_occ = 1000) {
+
+  # Check that the user has registered their user name
+  if (! "geonamesUsername" %in% names(options())) {
+    stop('You need to register a user name to use geonames. Make an account with geonames and set the "geonamesUsername" option by typing:\n   options(geonamesUsername="myname")')
+  }
+
   # Get geographic coordinates for place name
+  my_print('Searching Geonames for the location of "', place_name, '"...\n')
+  loadNamespace("geonames")
   possible_places <- geonames::GNsearch(name = place_name)
   if (nrow(possible_places) == 0) {
     stop(paste0('Could not find any matches to place name "', place_name,'"'))
@@ -101,7 +126,7 @@ search_place <- function(place_name,
       }
     } else {
       choice <- 1
-      my_print('Found "', possiblities[choice], '".')
+      my_print('Found "', possiblities[choice], '".\n')
     }
   } else {
     choice <- 1
@@ -111,5 +136,5 @@ search_place <- function(place_name,
   location <- as.numeric(unlist(possible_places[choice, c('lat', 'lng')]))
 
   # Search place
-  search_radius(lat = location[1], long = location[2], radius = radius, taxon = taxon)
+  search_radius(lat = location[1], long = location[2], radius = radius, taxon = taxon, max_occ = max_occ)
 }
