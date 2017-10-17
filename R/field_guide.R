@@ -46,15 +46,15 @@ search_area <- function(lat_range,
   my_print("Looking up common names from ", toupper(common_name_db), "...\n")
   common_name <- taxize::sci2comm(gbif_occ$name, db = common_name_db,
                                            verbose = FALSE, ask = FALSE, rows = 1)
-
   common_name <- lapply(common_name, function(x) {
     x <- x[!is.na(x)]
     if (length(x) > 0) {
       x <- Hmisc::capitalize(x)
       x <- unique(x)
     }
-    return(x)
+    paste0(x, collapse = ", ")
   })
+  gbif_occ$common_name <- common_name
 
   # Convert to taxmap
   output <- suppressWarnings(taxa::parse_tax_data(gbif_occ,
@@ -121,43 +121,46 @@ search_place <- function(place_name,
                          ask = FALSE,
                          max_occ = 10000) {
 
-  # Check that the user has registered their user name
-  if (! "geonamesUsername" %in% names(options())) {
-    stop('You need to register a user name to use geonames. Make an account with geonames and set the "geonamesUsername" option by typing:\n   options(geonamesUsername="myname")')
-  }
+  # # Check that the user has registered their user name
+  # if (! "geonamesUsername" %in% names(options())) {
+  #   stop('You need to register a user name to use geonames. Make an account with geonames and set the "geonamesUsername" option by typing:\n   options(geonamesUsername="myname")')
+  # }
 
-  # Get geographic coordinates for place name
-  my_print('Searching Geonames for the location of "', place_name, '"...\n')
-  loadNamespace("geonames")
-  possible_places <- geonames::GNsearch(name = place_name)
-  if (nrow(possible_places) == 0) {
-    stop(paste0('Could not find any matches to place name "', place_name,'"'))
-  }
+  # # Get geographic coordinates for place name
+  # my_print('Searching Geonames for the location of "', place_name, '"...\n')
+  # library("geonames")
+  # possible_places <- geonames::GNsearch(name = place_name)
+  # if (nrow(possible_places) == 0) {
+  #   stop(paste0('Could not find any matches to place name "', place_name,'"'))
+  # }
+  #
+  # # Ask user to choose if there are multiple hits
+  # if (nrow(possible_places) > 1) {
+  #   possiblities <- apply(possible_places, MARGIN = 1,
+  #                         function(x) paste(x['name'], x['adminName1'], x['countryName'], sep = ", "))
+  #   if (ask) {
+  #     my_print('Multiple possiblities found for "', place, '":\n')
+  #     my_print(paste(seq_along(possiblities), possiblities, collapse = "\n", sep = ":"))
+  #     choice = -1
+  #     while(choice < 1 ){
+  #       choice <- readline("Which location do you want?: ")
+  #       choice <- ifelse(grepl("\\D",choice),-1,as.integer(choice))
+  #       if(is.na(choice)){break}  # breaks when hit enter
+  #     }
+  #   } else {
+  #     choice <- 1
+  #     my_print('Found "', possiblities[choice], '".\n')
+  #   }
+  # } else {
+  #   choice <- 1
+  # }
+  #
+  # # Get location coords
+  # location <- as.numeric(unlist(possible_places[choice, c('lat', 'lng')]))
 
-  # Ask user to choose if there are multiple hits
-  if (nrow(possible_places) > 1) {
-    possiblities <- apply(possible_places, MARGIN = 1,
-                          function(x) paste(x['name'], x['adminName1'], x['countryName'], sep = ", "))
-    if (ask) {
-      my_print('Multiple possiblities found for "', place, '":\n')
-      my_print(paste(seq_along(possiblities), possiblities, collapse = "\n", sep = ":"))
-      choice = -1
-      while(choice < 1 ){
-        choice <- readline("Which location do you want?: ")
-        choice <- ifelse(grepl("\\D",choice),-1,as.integer(choice))
-        if(is.na(choice)){break}  # breaks when hit enter
-      }
-    } else {
-      choice <- 1
-      my_print('Found "', possiblities[choice], '".\n')
-    }
-  } else {
-    choice <- 1
-  }
-
-  # Get location coords
-  location <- as.numeric(unlist(possible_places[choice, c('lat', 'lng')]))
+  location <- ggmap::geocode(place_name, output = "more", messaging = FALSE)[1, ]
+  my_print('Found "', location$address, '".\n')
 
   # Search place
-  search_radius(lat = location[1], long = location[2], radius = radius, taxon = taxon, max_occ = max_occ)
+  search_radius(lat = location$lat, long = location$lon, radius = radius, taxon = taxon, max_occ = max_occ)
 }
