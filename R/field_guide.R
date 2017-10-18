@@ -10,6 +10,13 @@
 #' @param max_occ (\code{numeric} of length 1) The maximum number of occurances
 #'   to retreive in order to determine which species are present. A larger
 #'   number might return more species. There is a hard maximum of 200,000.
+#' @param max_img (\code{numeric} of length 1) The maximum number of images URLs
+#'   to return per species.
+#' @param common_name_db (\code{character} of length 1) The name of a database
+#'   to get common names from. Choices include "inat" (default), "eol", "itis"
+#'   "ncbi", "worms", or "iucn". "inat" is by far the fastest because it is used
+#'   either way to get image urls.  In increasing order of number of common
+#'   names: inat, ncbi, itis, eol
 #'
 #' @return Path to the output file
 #'
@@ -17,9 +24,9 @@
 search_area <- function(lat_range,
                         long_range,
                         taxon = NULL,
-                        max_occ = 10000) {
-  # Internal parameters
-  common_name_db <- "itis" # In increasing order of number of common names: ncbi, itis, eol. ncbi also can do internal taxa
+                        max_occ = 10000,
+                        max_img = 10,
+                        common_name_db = "inat") {
 
   # Search for species in range
   my_print("Searching GBIF for observation records...\n")
@@ -42,19 +49,39 @@ search_area <- function(lat_range,
   # Remove any taxa with no species information
   gbif_occ <- gbif_occ[! is.na(gbif_occ$species), ]
 
-  # Get common name
-  my_print("Looking up common names from ", toupper(common_name_db), "...\n")
-  common_name <- taxize::sci2comm(gbif_occ$name, db = common_name_db,
-                                           verbose = FALSE, ask = FALSE, rows = 1)
-  common_name <- lapply(common_name, function(x) {
-    x <- x[!is.na(x)]
-    if (length(x) > 0) {
-      x <- Hmisc::capitalize(x)
-      x <- unique(x)
-    }
-    paste0(x, collapse = ", ")
+  # Get URLs of photos and other iNaturalist data
+  my_print("Looking up images URLs from iNaturalist...\n")
+  raw_inat_data <- lapply(gbif_occ$name, function(x) {
+    rinat::get_inat_obs(taxon_name = x, quality = "research", maxresults = max_img)
   })
-  gbif_occ$common_name <- common_name
+  inat_data <- do.call(rbind, raw_inat_data) # combine into a single table
+  inat_data <- inat_data[, c("common_name", "url", "image_url", "user_login",
+                             "license", "num_identification_agreements", "num_identification_disagreements")]
+
+  # Get common name
+  if (common_name_db != "inat") {
+    my_print("Looking up common names from ", toupper(common_name_db), "...\n")
+    common_name <- taxize::sci2comm(gbif_occ$name, db = common_name_db,
+                                    verbose = FALSE, ask = FALSE, rows = 1)
+    common_name <- lapply(common_name, function(x) {
+      x <- x[!is.na(x)]
+      if (length(x) > 0) {
+        x <- Hmisc::capitalize(x)
+        x <- unique(x)
+      }
+      paste0(x, collapse = ", ")
+    })
+    gbif_occ$common_name <- common_name
+  } else {
+    gbif_occ$common_name <- vapply(raw_inat_data, FUN.VALUE = character(1),
+                                   function(x) {
+                                     if (nrow(x) == 0) {
+                                       return(NA)
+                                     } else {
+                                       return(Hmisc::capitalize(x[1, "common_name"]))
+                                     }
+                                   })
+  }
 
   # Convert to taxmap
   output <- suppressWarnings(taxa::parse_tax_data(gbif_occ,
