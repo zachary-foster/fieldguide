@@ -17,6 +17,8 @@ make_guide <- function(output_file, placename = NULL, latitude = NULL, longitude
                        radius = NULL, taxon = NULL, format = "pdf_document") {
   # Internal parameters
   max_img <- 4
+  font_size <- 11 # pt
+  margin <- 1 # cm
 
   # Check that a correct combination of parameters are used
   if (! is.null(placename) && (! is.null(latitude) || ! is.null(longitude))) {
@@ -58,10 +60,17 @@ make_guide <- function(output_file, placename = NULL, latitude = NULL, longitude
                     )
                   })
 
-  md_content <- paste0(sp_md, collapse = "\n")
+  main_content <- paste0(sp_md, collapse = "\n")
+
+  # Make header
+  head_content <- paste0("---\noutput: ", format,
+                         "\nfontsize: ", font_size,
+                         "pt\ngeometry: margin=", margin,
+                         "cm\n---\n\n")
 
   # Render markdown
+  all_md <- paste0(head_content, main_content)
   in_path <- tempfile()
-  writeChar(md_content, con = in_path)
+  writeChar(all_md, con = in_path)
   rmarkdown::render(input = in_path, output_format = format, output_file = output_file)
 }

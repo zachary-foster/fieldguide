@@ -23,6 +23,12 @@ get_wiki_content <- function(taxon) {
   # Get content of article
   content <- unname(parsed_result$query$pages[[1]]$revisions[[1]]["content"])
 
+  # Handle redirects
+  if (grepl(content, pattern = "^#REDIRECT \\[\\[.+\\]\\]$")) {
+    redirect <- gsub(content, pattern = "^#REDIRECT \\[\\[(.+)\\]\\]$", replacement = "\\1")
+    return(get_wiki_content(redirect))
+  }
+
   # Convert to markdown
   wiki_to_markdown(content)
 }
