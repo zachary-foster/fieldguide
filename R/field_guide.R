@@ -16,8 +16,8 @@
 make_guide <- function(output_file, placename = NULL, latitude = NULL, longitude = NULL,
                        radius = NULL, taxon = NULL, format = "pdf_document") {
   # Internal parameters
-  max_img <- 4
-  font_size <- 14 # pt
+  max_img <- 6
+  font_size <- 16 # pt
   margin <- 0.5 # in
 
   # Check that a correct combination of parameters are used
@@ -27,8 +27,10 @@ make_guide <- function(output_file, placename = NULL, latitude = NULL, longitude
 
   # Look up taxonomic information
   if (! is.null(placename)) {
+    title <- Hmisc::capitalize(placename)
     tax_data <- search_place(place_name = placename, radius = radius, taxon = taxon)
   } else if (! is.null(latitude) || ! is.null(longitude)) {
+    title <- paste0(latitude, ", ", longitude)
     tax_data <- search_place(latitude = latitude, longitude = longitude,
                              radius = radius, taxon = taxon)
   }
@@ -43,26 +45,32 @@ make_guide <- function(output_file, placename = NULL, latitude = NULL, longitude
                     taxonomy <- paste0(gbif[, c("kingdom", "phylum", "order", "family", "genus", "species")], collapse = " | ")
 
                     common_name <- gbif$common_name
+                    if (is.na(common_name)) {
+                      common_name <- ""
+                    }
 
                     images <- tax_data$data$inat_data[sp_name ==  tax_data$data$inat_data$name, "image_url"]
                     images <- images[[1]]
-                    images <- images[1:min(length(images), max_img)]
+                    images <- images[seq_len(min(length(images), max_img))]
 
-                    image_chunk <- paste0("\n```{r fig.cap='", sp_name,
-                                          "', fig.height=", 11 - margin * 2,
-                                          ", fig.width=", 8.5 - margin * 2,
-                                          ", echo=FALSE}\nurls <- c('", paste0(images, collapse = "', '"), "')",
-                                          "\nprint(fieldguide::image_grid(urls))\n```\n")
+                    if (length(images) == 0) {
+                      image_chunk <- ""
+                    } else {
+                      image_chunk <- paste0("\n```{r fig.cap='", sp_name,
+                                            "', fig.height=", 11 - margin * 2,
+                                            ", fig.width=", 8.5 - margin * 2,
+                                            ", echo=FALSE}\nurls <- c('", paste0(images, collapse = "', '"), "')",
+                                            "\nprint(fieldguide::image_grid(urls))\n```\n")
+                    }
 
                     wiki_content <- tax_data$data$wiki_data[sp_name ==  tax_data$data$wiki_data$name, "content"][[1]]
 
                     paste0(
-                      "## ", sp_name, "n\n",
+                      "## ", sp_name, "\n\n",
                       "**Common names:** ", common_name, "\n\n",
                       "**Taxonomic classification:** ", taxonomy, "\n\n",
-                      image_chunk, "\n",
-                      wiki_content, "\n"
-                      # '\\newpage <P style="page-break-before: always">\n\n'
+                      wiki_content, "\n",
+                      image_chunk, "\n"
                     )
                   })
 
@@ -72,13 +80,14 @@ make_guide <- function(output_file, placename = NULL, latitude = NULL, longitude
   head_content <- paste0("---\noutput: ", format,
                          "\nfontsize: ", font_size,
                          "pt\ngeometry: margin=", margin,
-                         "in\n---\n\n")
+                         "in\n---\n\n# ", title, "\n\n")
 
   # Render markdown
   all_md <- paste0(head_content, main_content)
   in_path <- tempfile(fileext = ".rmd")
   writeChar(all_md, con = in_path)
   rmarkdown::render(input = in_path, output_format = format, output_file = output_file, quiet = TRUE, knit_root_dir = dirname(in_path))
+  my_print('   Written to "', output_file, '"')
 }
 
 
@@ -92,12 +101,13 @@ make_guide <- function(output_file, placename = NULL, latitude = NULL, longitude
 image_grid <- function(urls) {
   temp_paths <- vapply(urls, FUN.VALUE = character(1),
                        function(url) {
-                         path <- tempfile(fileext = gsub(url, pattern = "^.+/(.+)\\?[0-9]+$", replacement = "\\1", perl = TRUE))
+                         path <- tempfile(fileext = basename(gsub(url, pattern = "\\?[0-9]+$", replacement = "")))
                          download.file(url, path, quiet = TRUE)
                          return(path)
                        })
   sub_plots <- lapply(temp_paths, plot_image)
   cowplot::plot_grid(plotlist = sub_plots,
+                     ncol = round(sqrt(6)),
                      scale = 1,
                      label_size = 30,
                      label_colour = "#777777")

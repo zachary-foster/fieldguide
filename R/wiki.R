@@ -24,13 +24,17 @@ get_wiki_content <- function(taxon) {
   content <- unname(parsed_result$query$pages[[1]]$revisions[[1]]["content"])
 
   # Handle redirects
-  if (grepl(content, pattern = "^#REDIRECT \\[\\[.+\\]\\]$")) {
-    redirect <- gsub(content, pattern = "^#REDIRECT \\[\\[(.+)\\]\\]$", replacement = "\\1")
+  if (! is.null(content) && grepl(content, pattern = "^#REDIRECT \\[\\[.+\\]\\].*$")) {
+    redirect <- gsub(content, pattern = "^#REDIRECT \\[\\[(.+)\\]\\].*$", replacement = "\\1")
     return(get_wiki_content(redirect))
   }
 
   # Convert to markdown
-  wiki_to_markdown(content)
+  if (is.null(content)) {
+    return("")
+  } else {
+    return(wiki_to_markdown(content))
+  }
 }
 
 
@@ -47,17 +51,146 @@ wiki_to_markdown <- function(text) {
                     input = text, stdout = TRUE)
   raw_md <- paste0(raw_md, collapse =  "\n")
 
-  raw_md <- raw_md %>%
-    gsub(pattern = "\nReferences(.|\n)*$", replacement = "") %>%
-    gsub(pattern = "\\[\\^[0-9]+\\]", replacement = "") %>%
-    gsub(pattern = "!\\[(.|\n)*?\\]\\((.|\n)+?\\)", replacement = "") %>%
-    gsub(pattern = "\\[((.|\n)+?)\\]\\((.|\n)+?\\)", replacement = "\\1") %>%
-    gsub(pattern = "<(.|\n)+?>", replacement = "") %>%
-    gsub(pattern = "\\]\\((.|\n)+?\\)", replacement = "") %>%
-    gsub(pattern = "\\{(.|\n)+?\\}", replacement = "") %>%
-    gsub(pattern = "\n\\*\n", replacement = "\n") %>%
-    gsub(pattern = "\n(.+?)\n-+\n", replacement = "\n### \\1\n", perl = T)
+  # Remove sections
+  raw_md <- gsub(raw_md, pattern = "\nReferences(.|\n)*$", replacement = "")
+  raw_md <- gsub(raw_md, pattern = "\nGallery(.|\n)*$", replacement = "")
+  raw_md <- gsub(raw_md, pattern = "\nImages(.|\n)*$", replacement = "")
+  raw_md <- gsub(raw_md, pattern = "\nExternal links(.|\n)*$", replacement = "")
+  raw_md <- gsub(raw_md, pattern = "\nSee also(.|\n)*$", replacement = "")
 
+  # Remove reference markup
+  raw_md <- gsub(raw_md, pattern = "\\[\\^[0-9]+\\]", replacement = "", perl = TRUE)
+
+  # Remove images
+  raw_md <- remove_images(raw_md)
+
+  # Remove links
+  raw_md <- remove_links(raw_md)
+
+  # Remove HTML tags
+  raw_md <- gsub(raw_md, pattern = "<(.|\n)+?>", replacement = "", perl = TRUE)
+
+  # Remove {}
+  raw_md <- gsub(raw_md, pattern = "\\{([^{}]|(?R))*\\}", replacement = "", perl = TRUE)
+
+  # Replace headers with markdown
+  raw_md <- gsub(raw_md, pattern = "\n(.+?)\n-+\n", replacement = "\n### \\1\n", perl = TRUE)
+
+  # Remove unicode characters
+  raw_md <- iconv(raw_md, "UTF-8", "ASCII", sub = "")
 
   return(raw_md)
+}
+
+
+#' Remove image text
+#'
+#' Remove image text from mediawiki markup. This complicated function is need
+#' because regex does not handle nested patterns well.
+#'
+#' @param text The mediawiki text.
+#'
+#' @keywords internal
+remove_images <- function(text) {
+  # text = "12345![bla[bla]bla](bla(bla)bla)6789  12345![bla[bla]bla](bla(bla)bla)6789 ![] ![](x![x]()x)123"
+
+  get_nested_range <- function(start, open, close) {
+    open_bracket <- gregexpr(text, pattern = open, fixed = TRUE)[[1]]
+    close_bracket <- gregexpr(text, pattern = close, fixed = TRUE)[[1]]
+    both_bracket <- c(open_bracket, close_bracket)
+
+    n_opened <- 1
+    pos <- start
+    while (n_opened != 0) {
+      next_bracket <- min(both_bracket[both_bracket > pos])
+      if (next_bracket %in% open_bracket) {
+        n_opened <- n_opened + 1
+      } else {
+        n_opened <- n_opened - 1
+      }
+      pos <- next_bracket
+    }
+
+    return(c(start, pos))
+  }
+
+  get_img_range <- function(start) {
+    bracket_range <- get_nested_range(start, "[", "]")
+    if (substr(text, bracket_range[2] + 1, bracket_range[2] + 1) == "(") {
+      par_range <- get_nested_range(bracket_range[2] + 1, "(", ")")
+      return(c(start, par_range[2]))
+    } else { # Not followed by parentheses
+      return(NA)
+    }
+  }
+
+  starts <- gregexpr(text, pattern = "![", fixed = TRUE)[[1]] + 1
+
+  if (starts[1] != 0) {
+    ranges <- lapply(starts, get_img_range)
+    ranges <- ranges[!is.na(ranges)]
+    img_text <- vapply(ranges, function(a_range) substr(text, a_range[1] -1, a_range[2]), character(1))
+
+    for (to_remove in img_text) {
+      text <- gsub(text, pattern = to_remove, replacement = "", fixed = TRUE)
+    }
+  }
+  return(text)
+}
+
+
+#' Remove link text
+#'
+#' Remove link text from mediawiki markup. This complicated function is need
+#' because regex does not handle nested patterns well.
+#'
+#' @param text The mediawiki text.
+#'
+#' @keywords internal
+remove_links <- function(text) {
+  # text = "12345[bla[bla]bla](bla(bla)bla)6789  12345[bla[bla]bla](bla(bla)bla)6789 [](x![x]()x)123"
+
+  get_nested_range <- function(start, open, close) {
+    open_bracket <- gregexpr(text, pattern = open, fixed = TRUE)[[1]]
+    close_bracket <- gregexpr(text, pattern = close, fixed = TRUE)[[1]]
+    both_bracket <- c(open_bracket, close_bracket)
+
+    n_opened <- 1
+    pos <- start
+    while (n_opened != 0) {
+      next_bracket <- min(both_bracket[both_bracket > pos])
+      if (next_bracket %in% open_bracket) {
+        n_opened <- n_opened + 1
+      } else {
+        n_opened <- n_opened - 1
+      }
+      pos <- next_bracket
+    }
+
+    return(c(start, pos))
+  }
+
+  get_img_range <- function(start) {
+    bracket_range <- get_nested_range(start, "[", "]")
+    if (substr(text, bracket_range[2] + 1, bracket_range[2] + 1) == "(") {
+      par_range <- get_nested_range(bracket_range[2] + 1, "(", ")")
+      return(list(start, par_range[2], substr(text, bracket_range[1] + 1, bracket_range[2] - 1)))
+    } else { # Not followed by parentheses
+      return(NA)
+    }
+  }
+
+  if (starts[1] != 0) {
+    starts <- gregexpr(text, pattern = "[", fixed = TRUE)[[1]]
+    ranges <- lapply(starts, get_img_range)
+    ranges <- ranges[!is.na(ranges)]
+    to_remove <- vapply(ranges, function(a_range) substr(text, a_range[[1]], a_range[[2]]), character(1))
+
+    for (i in seq_len(length(ranges))) {
+      to_add <- ranges[[i]][[3]]
+      text <- gsub(text, pattern = to_remove[i], replacement = to_add, fixed = TRUE)
+    }
+  }
+
+  return(text)
 }

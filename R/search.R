@@ -36,6 +36,9 @@ search_area <- function(lat_range,
                                 return = "data",
                                 scientificName = taxon,
                                 limit = max_occ)
+  if (length(gbif_occ) == 1 && gbif_occ == "no data found, try a different search") {
+    stop("No species found in the given area.", call. = FALSE)
+  }
 
   # Filter out unneed columns
   gbif_occ <- gbif_occ[, c("name", "scientificName", "kingdom", "phylum", "order", "family", "genus", "species")]
@@ -89,8 +92,8 @@ search_area <- function(lat_range,
   } else {
     gbif_occ$common_name <- vapply(raw_inat_data, FUN.VALUE = character(1),
                                    function(x) {
-                                     if (nrow(x) == 0) {
-                                       return(NA)
+                                     if (is.null(x) || nrow(x) == 0 || all(is.na(x[1, "common_name"]))) {
+                                       return(NA_character_)
                                      } else {
                                        return(Hmisc::capitalize(x[1, "common_name"]))
                                      }
