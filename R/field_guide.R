@@ -17,8 +17,8 @@ make_guide <- function(output_file, placename = NULL, latitude = NULL, longitude
                        radius = NULL, taxon = NULL, format = "pdf_document") {
   # Internal parameters
   max_img <- 4
-  font_size <- 11 # pt
-  margin <- 1 # cm
+  font_size <- 14 # pt
+  margin <- 0.5 # in
 
   # Check that a correct combination of parameters are used
   if (! is.null(placename) && (! is.null(latitude) || ! is.null(longitude))) {
@@ -48,15 +48,21 @@ make_guide <- function(output_file, placename = NULL, latitude = NULL, longitude
                     images <- images[[1]]
                     images <- images[1:min(length(images), max_img)]
 
+                    image_chunk <- paste0("\n```{r fig.cap='", sp_name,
+                                          "', fig.height=", 11 - margin * 2,
+                                          ", fig.width=", 8.5 - margin * 2,
+                                          ", echo=FALSE}\nurls <- c('", paste0(images, collapse = "', '"), "')",
+                                          "\nprint(fieldguide::image_grid(urls))\n```\n")
+
                     wiki_content <- tax_data$data$wiki_data[sp_name ==  tax_data$data$wiki_data$name, "content"][[1]]
 
                     paste0(
                       "## ", sp_name, "n\n",
                       "**Common names:** ", common_name, "\n\n",
                       "**Taxonomic classification:** ", taxonomy, "\n\n",
-                      paste0("![", sp_name, "](", images, ")", collapse = "\n\n"), "\n\n",
-                      wiki_content, "\n",
-                      '\\newpage <P style="page-break-before: always">\n\n'
+                      image_chunk, "\n",
+                      wiki_content, "\n"
+                      # '\\newpage <P style="page-break-before: always">\n\n'
                     )
                   })
 
@@ -66,11 +72,58 @@ make_guide <- function(output_file, placename = NULL, latitude = NULL, longitude
   head_content <- paste0("---\noutput: ", format,
                          "\nfontsize: ", font_size,
                          "pt\ngeometry: margin=", margin,
-                         "cm\n---\n\n")
+                         "in\n---\n\n")
 
   # Render markdown
   all_md <- paste0(head_content, main_content)
-  in_path <- tempfile()
+  in_path <- tempfile(fileext = ".rmd")
   writeChar(all_md, con = in_path)
-  rmarkdown::render(input = in_path, output_format = format, output_file = output_file)
+  rmarkdown::render(input = in_path, output_format = format, output_file = output_file, quiet = TRUE, knit_root_dir = dirname(in_path))
+}
+
+
+#' Plot a grid of images
+#'
+#' Plot a grid of images from URLs
+#'
+#' @param urls The URLs to the images
+#'
+#' @export
+image_grid <- function(urls) {
+  temp_paths <- vapply(urls, FUN.VALUE = character(1),
+                       function(url) {
+                         path <- tempfile(fileext = gsub(url, pattern = "^.+/(.+)\\?[0-9]+$", replacement = "\\1", perl = TRUE))
+                         download.file(url, path, quiet = TRUE)
+                         return(path)
+                       })
+  sub_plots <- lapply(temp_paths, plot_image)
+  cowplot::plot_grid(plotlist = sub_plots,
+                     scale = 1,
+                     label_size = 30,
+                     label_colour = "#777777")
+}
+
+
+#' Plot an image
+#'
+#' Plot an image from a file path
+#'
+#' @param path The path to the image to plot
+#'
+#' @keywords internal
+plot_image <- function(path) {
+  if (endsWith(tolower(path), "png")) {
+    image <- png::readPNG(path)
+  } else if (endsWith(tolower(path), "jpg") || endsWith(tolower(path), "jpeg")) {
+    image <- jpeg::readJPEG(path)
+  } else {
+    stop(paste0('Not an accepted file format: "', path, '".'))
+  }
+  y_max <- dim(image)[1] / dim(image)[2]
+  ggplot2::ggplot() +
+    ggplot2::annotation_raster(image, ymin = 0, xmin = 0, xmax = 1, ymax = y_max) +
+    ggplot2::ylim(0, y_max) +
+    ggplot2::xlim(0, 1) +
+    ggplot2::coord_fixed() +
+    ggplot2::theme_void()
 }
