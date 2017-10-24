@@ -47,7 +47,7 @@ search_area <- function(lat_range,
   gbif_occ$root <- "Life"
 
   # Make unique
-  gbif_occ <- unique(gbif_occ)
+  gbif_occ <- gbif_occ[!duplicated(gbif_occ$name), ]
 
   # Remove any taxa with no species information
   gbif_occ <- gbif_occ[! is.na(gbif_occ$species), ]
@@ -92,7 +92,7 @@ search_area <- function(lat_range,
   } else {
     gbif_occ$common_name <- vapply(raw_inat_data, FUN.VALUE = character(1),
                                    function(x) {
-                                     if (is.null(x) || nrow(x) == 0 || all(is.na(x[1, "common_name"]))) {
+                                     if (is.null(x) || nrow(x) == 0 || is.na(x[1, "common_name"])) {
                                        return(NA_character_)
                                      } else {
                                        return(Hmisc::capitalize(x[1, "common_name"]))

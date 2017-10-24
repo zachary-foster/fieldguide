@@ -63,10 +63,10 @@ make_guide <- function(output_file, placename = NULL, latitude = NULL, longitude
                                             "\nprint(fieldguide::image_grid(urls))\n```\n")
                     }
 
-                    wiki_content <- tax_data$data$wiki_data[sp_name ==  tax_data$data$wiki_data$name, "content"][[1]]
+                    wiki_content <- tax_data$data$wiki_data[sp_name == tax_data$data$wiki_data$name, "content"][[1]]
 
                     paste0(
-                      "## ", sp_name, "\n\n",
+                      "## *", sp_name, "*\n\n",
                       "**Common names:** ", common_name, "\n\n",
                       "**Taxonomic classification:** ", taxonomy, "\n\n",
                       wiki_content, "\n",

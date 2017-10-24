@@ -64,6 +64,9 @@ wiki_to_markdown <- function(text) {
   # Remove images
   raw_md <- remove_images(raw_md)
 
+  # Remove thumbnails
+  raw_md <- remove_thumbnails(raw_md)
+
   # Remove links
   raw_md <- remove_links(raw_md)
 
@@ -78,6 +81,13 @@ wiki_to_markdown <- function(text) {
 
   # Remove unicode characters
   raw_md <- iconv(raw_md, "UTF-8", "ASCII", sub = "")
+
+  # Remove escaped brackets
+  raw_md <- gsub(raw_md, pattern = "\\[", replacement = "[", fixed = TRUE)
+  raw_md <- gsub(raw_md, pattern = "\\]", replacement = "]", fixed = TRUE)
+
+  # Handle nested lists
+  raw_md <- gsub(raw_md, pattern = "\n:::\\*", replacement = "\n    * ", fixed = TRUE)
 
   return(raw_md)
 }
@@ -180,8 +190,9 @@ remove_links <- function(text) {
     }
   }
 
+  starts <- gregexpr(text, pattern = "[", fixed = TRUE)[[1]]
+
   if (starts[1] != 0) {
-    starts <- gregexpr(text, pattern = "[", fixed = TRUE)[[1]]
     ranges <- lapply(starts, get_img_range)
     ranges <- ranges[!is.na(ranges)]
     to_remove <- vapply(ranges, function(a_range) substr(text, a_range[[1]], a_range[[2]]), character(1))
@@ -192,5 +203,60 @@ remove_links <- function(text) {
     }
   }
 
+  return(text)
+}
+
+
+#' Remove thumbnail text
+#'
+#' Remove thumbnail text from mediawiki markup. This complicated function is need
+#' because regex does not handle nested patterns well.
+#'
+#' @param text The mediawiki text.
+#'
+#' @keywords internal
+remove_thumbnails <- function(text) {
+
+    get_nested_range <- function(start, open, close) {
+    open_bracket <- gregexpr(text, pattern = open, fixed = TRUE)[[1]]
+    close_bracket <- gregexpr(text, pattern = close, fixed = TRUE)[[1]]
+    both_bracket <- c(open_bracket, close_bracket)
+
+    n_opened <- 1
+    pos <- start
+    while (n_opened != 0) {
+      next_bracket <- min(both_bracket[both_bracket > pos])
+      if (next_bracket %in% open_bracket) {
+        n_opened <- n_opened + 1
+      } else {
+        n_opened <- n_opened - 1
+      }
+      pos <- next_bracket
+    }
+
+    return(c(start, pos))
+  }
+
+  get_img_range <- function(start) {
+    bracket_range <- get_nested_range(start, "[", "]")
+    if (substr(text, bracket_range[2] + 1, bracket_range[2] + 6) == "(File:") {
+      par_range <- get_nested_range(bracket_range[2] + 1, "(", ")")
+      return(c(start, par_range[2]))
+    } else { # Not followed by parentheses
+      return(NA)
+    }
+  }
+
+  starts <- gregexpr(text, pattern = "[", fixed = TRUE)[[1]] + 1
+
+  if (starts[1] != 0) {
+    ranges <- lapply(starts, get_img_range)
+    ranges <- ranges[!is.na(ranges)]
+    img_text <- vapply(ranges, function(a_range) substr(text, a_range[1] - 1, a_range[2]), character(1))
+
+    for (to_remove in img_text) {
+      text <- gsub(text, pattern = to_remove, replacement = "", fixed = TRUE)
+    }
+  }
   return(text)
 }
