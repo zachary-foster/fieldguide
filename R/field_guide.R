@@ -80,7 +80,7 @@ make_guide <- function(output_file, placename = NULL, latitude = NULL, longitude
   head_content <- paste0("---\noutput: ", format,
                          "\nfontsize: ", font_size,
                          "pt\ngeometry: margin=", margin,
-                         "in\n---\n\n# ", title, "\n\n")
+                         "in\n---\n\n")
 
   # Render markdown
   all_md <- paste0(head_content, main_content)
@@ -102,6 +102,7 @@ image_grid <- function(urls) {
   temp_paths <- vapply(urls, FUN.VALUE = character(1),
                        function(url) {
                          path <- tempfile(fileext = basename(gsub(url, pattern = "\\?[0-9]+$", replacement = "")))
+                         path <- sub(path, pattern = "\\.$", replacement = "\\.jpg") # Some paths have no extension...
                          download.file(url, path, quiet = TRUE)
                          return(path)
                        })

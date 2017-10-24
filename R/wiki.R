@@ -25,7 +25,7 @@ get_wiki_content <- function(taxon) {
 
   # Handle redirects
   if (! is.null(content) && grepl(content, pattern = "^#REDIRECT \\[\\[.+\\]\\].*$")) {
-    redirect <- gsub(content, pattern = "^#REDIRECT \\[\\[(.+)\\]\\].*$", replacement = "\\1")
+    redirect <- gsub(content, pattern = "^#REDIRECT \\[\\[(.+?)\\]\\].*$", replacement = "\\1")
     return(get_wiki_content(redirect))
   }
 
@@ -51,7 +51,7 @@ wiki_to_markdown <- function(text) {
                     input = text, stdout = TRUE)
   raw_md <- paste0(raw_md, collapse =  "\n")
 
-  # Remove sections
+  # Remove sections not applicable for the field guide
   raw_md <- gsub(raw_md, pattern = "\nReferences(.|\n)*$", replacement = "")
   raw_md <- gsub(raw_md, pattern = "\nGallery(.|\n)*$", replacement = "")
   raw_md <- gsub(raw_md, pattern = "\nImages(.|\n)*$", replacement = "")
@@ -192,7 +192,7 @@ remove_links <- function(text) {
 
   starts <- gregexpr(text, pattern = "[", fixed = TRUE)[[1]]
 
-  if (starts[1] != 0) {
+  if (starts[1] != -1) {
     ranges <- lapply(starts, get_img_range)
     ranges <- ranges[!is.na(ranges)]
     to_remove <- vapply(ranges, function(a_range) substr(text, a_range[[1]], a_range[[2]]), character(1))
