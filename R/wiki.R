@@ -136,7 +136,7 @@ remove_images <- function(text) {
 
   starts <- gregexpr(text, pattern = "![", fixed = TRUE)[[1]] + 1
 
-  if (starts[1] != 0) {
+  if (! is.na(starts[1]) && starts[1] != 0) {
     ranges <- lapply(starts, get_img_range)
     ranges <- ranges[!is.na(ranges)]
     img_text <- vapply(ranges, function(a_range) substr(text, a_range[1] -1, a_range[2]), character(1))
@@ -192,7 +192,7 @@ remove_links <- function(text) {
 
   starts <- gregexpr(text, pattern = "[", fixed = TRUE)[[1]]
 
-  if (starts[1] != -1) {
+  if (! is.na(starts[1]) && starts[1] != -1) {
     ranges <- lapply(starts, get_img_range)
     ranges <- ranges[!is.na(ranges)]
     to_remove <- vapply(ranges, function(a_range) substr(text, a_range[[1]], a_range[[2]]), character(1))
@@ -249,7 +249,7 @@ remove_thumbnails <- function(text) {
 
   starts <- gregexpr(text, pattern = "[", fixed = TRUE)[[1]] + 1
 
-  if (starts[1] != 0) {
+  if (! is.na(starts[1]) && starts[1] != 0) {
     ranges <- lapply(starts, get_img_range)
     ranges <- ranges[!is.na(ranges)]
     img_text <- vapply(ranges, function(a_range) substr(text, a_range[1] - 1, a_range[2]), character(1))

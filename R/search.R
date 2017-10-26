@@ -17,6 +17,10 @@
 #'   "ncbi", "worms", or "iucn". "inat" is by far the fastest because it is used
 #'   either way to get image urls.  In increasing order of number of common
 #'   names: inat, ncbi, itis, eol
+#' @param max_species The maximum number of species that will be returned. The
+#'   species with the least occurances will be dropped. What is actually
+#'   returned may be less than this if either of the \code{img_needed} and \code{wiki_needed} options
+#'   are true, since this filter is applied first for performance reasons.
 #'
 #' @return Path to the output file
 #'
@@ -24,9 +28,10 @@
 search_area <- function(lat_range,
                         long_range,
                         taxon = NULL,
-                        max_occ = 5000,
+                        max_occ = 10000,
                         max_img = 10,
-                        common_name_db = "inat") {
+                        common_name_db = "inat",
+                        max_species = 50) {
 
   # Search for species in range
   my_print("Searching GBIF for observation records...")
@@ -47,14 +52,23 @@ search_area <- function(lat_range,
   gbif_occ$root <- "Life"
 
   # Make unique
-  gbif_occ <- gbif_occ[!duplicated(gbif_occ$name), ]
+  gbif_occ$occ_count <- as.numeric(table(gbif_occ$name)[gbif_occ$name])
+  gbif_occ <- gbif_occ[! duplicated(gbif_occ$name), ]
+
+  # Sort by number of occurances
+  gbif_occ <- gbif_occ[order(gbif_occ$occ_count, decreasing = TRUE), ]
 
   # Remove any taxa with no species information
   gbif_occ <- gbif_occ[! is.na(gbif_occ$species), ]
 
-  # Print results
-  my_print("   Found occurances for ", nrow(gbif_occ), " species.\n")
-
+  # Filter out uncommon species
+  if (nrow(gbif_occ) > max_species) {
+    my_print("   Found occurances for ", nrow(gbif_occ),
+             " species, but limiting results to the ", max_species," most common.\n")
+    gbif_occ <- gbif_occ[seq_len(max_species), ] # Already sorted by number of occurances
+  } else {
+    my_print("   Found occurances for ", nrow(gbif_occ), " species.\n")
+  }
 
   # Get URLs of photos and other iNaturalist data
   my_print("Looking up image URLs from iNaturalist...")
@@ -114,6 +128,10 @@ search_area <- function(lat_range,
                                                   datasets = list(inat_data = inat_data, wiki_data = wiki_data),
                                                   mappings = c("name" = "name", "name" = "name")))
 
+  # Add coordinates
+  output$data$lat_range <- lat_range
+  output$data$long_range <- long_range
+
   return(output)
 }
 
@@ -159,44 +177,6 @@ search_radius <- function(lat, long, radius = 40, ...) {
 #'
 #' @export
 search_place <- function(place_name, ...) {
-
-  # # Check that the user has registered their user name
-  # if (! "geonamesUsername" %in% names(options())) {
-  #   stop('You need to register a user name to use geonames. Make an account with geonames and set the "geonamesUsername" option by typing:\n   options(geonamesUsername="myname")')
-  # }
-
-  # # Get geographic coordinates for place name
-  # my_print('Searching Geonames for the location of "', place_name, '"...\n')
-  # library("geonames")
-  # possible_places <- geonames::GNsearch(name = place_name)
-  # if (nrow(possible_places) == 0) {
-  #   stop(paste0('Could not find any matches to place name "', place_name,'"'))
-  # }
-  #
-  # # Ask user to choose if there are multiple hits
-  # if (nrow(possible_places) > 1) {
-  #   possiblities <- apply(possible_places, MARGIN = 1,
-  #                         function(x) paste(x['name'], x['adminName1'], x['countryName'], sep = ", "))
-  #   if (ask) {
-  #     my_print('Multiple possiblities found for "', place, '":\n')
-  #     my_print(paste(seq_along(possiblities), possiblities, collapse = "\n", sep = ":"))
-  #     choice = -1
-  #     while(choice < 1 ){
-  #       choice <- readline("Which location do you want?: ")
-  #       choice <- ifelse(grepl("\\D",choice),-1,as.integer(choice))
-  #       if(is.na(choice)){break}  # breaks when hit enter
-  #     }
-  #   } else {
-  #     choice <- 1
-  #     my_print('Found "', possiblities[choice], '".\n')
-  #   }
-  # } else {
-  #   choice <- 1
-  # }
-  #
-  # # Get location coords
-  # location <- as.numeric(unlist(possible_places[choice, c('lat', 'lng')]))
-
   my_print("Looking up location from Google Maps...")
   location <- suppressMessages(ggmap::geocode(place_name, output = "more", messaging = FALSE)[1, ])
   my_print('   Found "', location$address, '".\n')
