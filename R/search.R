@@ -28,105 +28,95 @@
 search_area <- function(lat_range,
                         long_range,
                         taxon = NULL,
-                        max_occ = 10000,
-                        max_img = 10,
-                        common_name_db = "inat",
-                        max_species = 50) {
+                        max_species = 50,
+                        max_occ = 100) {
+  # Internal parameters
+  batch_size <- 50 # maximum is 300
+  cols_to_keep <- c("name", "key", "decimalLatitude", "decimalLongitude", "issues",
+                    "datasetKey", "publishingOrgKey", "publishingCountry", "protocol",
+                    "lastCrawled", "lastParsed", "crawlId", "basisOfRecord", "taxonKey",
+                    "kingdomKey", "phylumKey", "classKey", "orderKey", "familyKey",
+                    "genusKey", "scientificName", "kingdom", "phylum", "order", "family",
+                    "genus", "genericName", "specificEpithet", "taxonRank", "dateIdentified",
+                    "year", "month", "day", "eventDate", "modified", "lastInterpreted",
+                    "references", "license", "geodeticDatum", "class", "countryCode",
+                    "country", "rightsHolder", "identifier", "verbatimEventDate",
+                    "datasetName", "verbatimLocality", "collectionCode", "gbifID",
+                    "occurrenceID", "taxonID", "catalogNumber", "recordedBy",
+                    "institutionCode", "rights", "identificationID")
 
   # Search for species in range
-  my_print("Searching GBIF for observation records...")
-  gbif_occ <- rgbif::occ_search(decimalLatitude = lat_range,
-                                decimalLongitude = long_range,
-                                hasCoordinate = TRUE,
-                                return = "data",
-                                scientificName = taxon,
-                                limit = max_occ)
-  if (length(gbif_occ) == 1 && gbif_occ == "no data found, try a different search") {
-    stop("No species found in the given area.", call. = FALSE)
+  my_print("Searching for species observations",
+           ifelse(is.null(taxon), "...", paste0('for the taxon "', taxon, '"...')))
+  taxa_found <- c()
+  overall_occ_data <- NULL
+  start <- 0
+  while (length(taxa_found) < max_species) {
+    one_search <- rgbif::occ_data(decimalLatitude = lat_range,
+                                  decimalLongitude = long_range,
+                                  scientificName = taxon,
+                                  limit = batch_size,
+                                  start = start,
+                                  hasCoordinate = TRUE,
+                                  hasGeospatialIssue = FALSE)
+    if (is.null(one_search$data)) {
+      my_print("   No more occurances. Ending search.")
+      break
+    } else {
+      one_search$data <- one_search$data[ , cols_to_keep]
+      one_search$data <- one_search$data[! is.na(one_search$data$name), ]
+      start <- start + batch_size
+      taxa_found <- unique(c(taxa_found, one_search$data$taxonKey))
+      my_print("   Searched ", start, " occurances so far and found ", length(taxa_found), " species.")
+      if (all(one_search$data$taxonKey %in% overall_occ_data$taxonKey)) {
+        my_print("   No new species found. Ending search.")
+        break
+      }
+      overall_occ_data <- rbind(overall_occ_data, one_search$data)
+    }
   }
 
-  # Filter out unneed columns
-  gbif_occ <- gbif_occ[, c("name", "scientificName", "kingdom", "phylum", "order", "family", "genus", "species")]
+  # Filter for only the most common species if there are to many
+  occ_counts <- table(overall_occ_data$taxonKey)[as.character(taxa_found)]
+  occ_counts <- occ_counts[order(occ_counts, decreasing = TRUE)]
+  if (length(taxa_found) > max_species) {
+    my_print("   Found occurances for ", length(taxa_found),
+             " species, but limiting results to the ", max_species," most common.\n")
+    occ_counts <- occ_counts[seq_len(max_species)] # Already sorted by number of occurances
+    taxa_found <- names(occ_counts)
+  } else {
+    my_print("   Found occurances for ", length(taxa_found), " species.\n")
+  }
+
+  # Get full occurance data for each species
+  my_print("Looking up full occurance data for the ", length(taxa_found), " species found.")
+  progress_bar <- txtProgressBar(min = 0, max = length(taxa_found), style = 3)
+  get_species_occ <- function(i) {
+    result <- rgbif::occ_data(decimalLatitude = lat_range,
+                              decimalLongitude = long_range,
+                              taxonKey = taxa_found[i],
+                              limit = max_occ,
+                              hasCoordinate = TRUE,
+                              hasGeospatialIssue = FALSE)
+    result$data <- result$data[ , cols_to_keep]
+    result$data <- result$data[! is.na(result$data$name), ]
+    setTxtProgressBar(progress_bar, i)
+    return(result$data)
+  }
+  species_occ_data <- do.call(rbind, lapply(seq_len(length(taxa_found)), get_species_occ))
+  close(progress_bar)
 
   # Add root to the taxonomy
-  gbif_occ$root <- "Life"
-
-  # Make unique
-  gbif_occ$occ_count <- as.numeric(table(gbif_occ$name)[gbif_occ$name])
-  gbif_occ <- gbif_occ[! duplicated(gbif_occ$name), ]
+  species_occ_data$root <- "Life"
 
   # Sort by number of occurances
-  gbif_occ <- gbif_occ[order(gbif_occ$occ_count, decreasing = TRUE), ]
+  species_occ_data$occ_count <- as.numeric(table(species_occ_data$name)[species_occ_data$name])
+  species_occ_data <- species_occ_data[order(species_occ_data$occ_count, decreasing = TRUE), ]
 
-  # Remove any taxa with no species information
-  gbif_occ <- gbif_occ[! is.na(gbif_occ$species), ]
-
-  # Filter out uncommon species
-  if (nrow(gbif_occ) > max_species) {
-    my_print("   Found occurances for ", nrow(gbif_occ),
-             " species, but limiting results to the ", max_species," most common.\n")
-    gbif_occ <- gbif_occ[seq_len(max_species), ] # Already sorted by number of occurances
-  } else {
-    my_print("   Found occurances for ", nrow(gbif_occ), " species.\n")
-  }
-
-  # Get URLs of photos and other iNaturalist data
-  my_print("Looking up image URLs from iNaturalist...")
-  raw_inat_data <- lapply(gbif_occ$name, function(x) {
-    tryCatch({
-      out <- rinat::get_inat_obs(taxon_name = x, quality = "research", maxresults = max_img)
-      out$name <- x
-      return(out)
-    }, error = function(err) {
-      return(NULL)
-    })
-  })
-  inat_data <- do.call(rbind, raw_inat_data) # combine into a single table
-  inat_data <- inat_data[, c("name", "common_name", "url", "image_url", "user_login",
-                             "license", "num_identification_agreements", "num_identification_disagreements")]
-
-  # Print results
-  my_print("   Found images for ", length(unique(inat_data$name)), " species.\n")
-
-  # Get common name
-  if (common_name_db != "inat") {
-    my_print("Looking up common names from ", toupper(common_name_db), "...")
-    common_name <- taxize::sci2comm(gbif_occ$name, db = common_name_db,
-                                    verbose = FALSE, ask = FALSE, rows = 1)
-    common_name <- lapply(common_name, function(x) {
-      x <- x[!is.na(x)]
-      if (length(x) > 0) {
-        x <- Hmisc::capitalize(x)
-        x <- unique(x)
-      }
-      paste0(x, collapse = ", ")
-    })
-    my_print("   Found common names.\n")
-    gbif_occ$common_name <- common_name
-  } else {
-    gbif_occ$common_name <- vapply(raw_inat_data, FUN.VALUE = character(1),
-                                   function(x) {
-                                     if (is.null(x) || nrow(x) == 0 || is.na(x[1, "common_name"])) {
-                                       return(NA_character_)
-                                     } else {
-                                       return(Hmisc::capitalize(x[1, "common_name"]))
-                                     }
-                                   })
-  }
-
-  # Get wikipedia content
-  my_print("Looking up wikipedia content for taxa...")
-  wiki_data <- dplyr::tibble(name =  gbif_occ$name,
-                             content = vapply(gbif_occ$name, get_wiki_content, character(1)))
-
-  # Print results
-  my_print("   Found Wikipedia content for ", length(unique(wiki_data$name)), " species.\n")
 
   # Convert to taxmap
-  output <- suppressWarnings(taxa::parse_tax_data(gbif_occ,
-                                                  class_cols = c("root", "kingdom", "phylum", "order", "family", "genus", "species"),
-                                                  datasets = list(inat_data = inat_data, wiki_data = wiki_data),
-                                                  mappings = c("name" = "name", "name" = "name")))
+  output <- suppressWarnings(taxa::parse_tax_data(species_occ_data,
+                                                  class_cols = c("root", "kingdom", "phylum", "order", "family", "genus", "specificEpithet")))
 
   # Add coordinates
   output$data$lat_range <- lat_range
