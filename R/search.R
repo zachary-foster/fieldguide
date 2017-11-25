@@ -29,9 +29,9 @@ search_area <- function(lat_range,
                         long_range,
                         taxon = NULL,
                         max_species = 50,
-                        max_occ = 100) {
+                        max_occ = 500) {
   # Internal parameters
-  batch_size <- 50 # maximum is 300
+  batch_size <- 30 # maximum is 300
   cols_to_keep <- c("name", "key", "decimalLatitude", "decimalLongitude", "issues",
                     "datasetKey", "publishingOrgKey", "publishingCountry", "protocol",
                     "lastCrawled", "lastParsed", "crawlId", "basisOfRecord", "taxonKey",
@@ -117,6 +117,7 @@ search_area <- function(lat_range,
   # Convert to taxmap
   output <- suppressWarnings(taxa::parse_tax_data(species_occ_data,
                                                   class_cols = c("root", "kingdom", "phylum", "order", "family", "genus", "specificEpithet")))
+  names(output$data) <- "occ"
 
   # Add coordinates
   output$data$lat_range <- lat_range
