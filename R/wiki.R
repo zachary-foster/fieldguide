@@ -1,41 +1,4 @@
 
-#' Download wikipedia content for a taxon
-#'
-#' Download wikipedia content for a taxon
-#'
-#' @param taxon THe taxon the get information for.
-#'
-#' @keywords internal
-get_wiki_content <- function(taxon) {
-  raw_result <-  RCurl::getForm(
-    "https://en.wikipedia.org/w/api.php",
-    action  = "query",
-    titles = taxon,
-    prop = "revisions",
-    rvprop = "content",
-    format = "json",
-    formatversion = "2"
-  )
-
-  # Parse result
-  parsed_result <- RJSONIO::fromJSON(raw_result)
-
-  # Get content of article
-  content <- unname(parsed_result$query$pages[[1]]$revisions[[1]]["content"])
-
-  # Handle redirects
-  if (! is.null(content) && grepl(content, pattern = "^#REDIRECT \\[\\[.+\\]\\].*$")) {
-    redirect <- gsub(content, pattern = "^#REDIRECT \\[\\[(.+?)\\]\\].*$", replacement = "\\1")
-    return(get_wiki_content(redirect))
-  }
-
-  # Convert to markdown
-  if (is.null(content)) {
-    return("")
-  } else {
-    return(wiki_to_markdown(content))
-  }
-}
 
 
 #' Convert wikipedia markup to markdown

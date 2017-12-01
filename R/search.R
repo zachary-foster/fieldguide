@@ -3,11 +3,11 @@
 #' Return species for a coordinate range according to GBIF.
 #'
 #' @param lat_range (\code{numeric} of length 2) The range of latitudes to
-#'   search species occurance data for.
+#'   search species occurrence data for.
 #' @param long_range (\code{numeric} of length 2) The range of longitudes to
-#'   search species occurance data for.
+#'   search species occurrence data for.
 #' @param taxon (\code{character} of length 1) A taxon name to search for.
-#' @param max_occ (\code{numeric} of length 1) The maximum number of occurances
+#' @param max_occ (\code{numeric} of length 1) The maximum number of occurrences
 #'   to retreive in order to determine which species are present. A larger
 #'   number might return more species. There is a hard maximum of 200,000.
 #' @param max_img (\code{numeric} of length 1) The maximum number of images URLs
@@ -18,7 +18,7 @@
 #'   either way to get image urls.  In increasing order of number of common
 #'   names: inat, ncbi, itis, eol
 #' @param max_species The maximum number of species that will be returned. The
-#'   species with the least occurances will be dropped. What is actually
+#'   species with the least occurrences will be dropped. What is actually
 #'   returned may be less than this if either of the \code{img_needed} and \code{wiki_needed} options
 #'   are true, since this filter is applied first for performance reasons.
 #'
@@ -60,14 +60,14 @@ search_area <- function(lat_range,
                                   hasCoordinate = TRUE,
                                   hasGeospatialIssue = FALSE)
     if (is.null(one_search$data)) {
-      my_print("   No more occurances. Ending search.")
+      my_print("   No more occurrences. Ending search.")
       break
     } else {
       one_search$data <- one_search$data[ , cols_to_keep]
       one_search$data <- one_search$data[! is.na(one_search$data$name), ]
       start <- start + batch_size
       taxa_found <- unique(c(taxa_found, one_search$data$taxonKey))
-      my_print("   Searched ", start, " occurances so far and found ", length(taxa_found), " species.")
+      my_print("   Searched ", start, " occurrences so far and found ", length(taxa_found), " species.")
       if (all(one_search$data$taxonKey %in% overall_occ_data$taxonKey)) {
         my_print("   No new species found. Ending search.")
         break
@@ -80,16 +80,16 @@ search_area <- function(lat_range,
   occ_counts <- table(overall_occ_data$taxonKey)[as.character(taxa_found)]
   occ_counts <- occ_counts[order(occ_counts, decreasing = TRUE)]
   if (length(taxa_found) > max_species) {
-    my_print("   Found occurances for ", length(taxa_found),
+    my_print("   Found occurrences for ", length(taxa_found),
              " species, but limiting results to the ", max_species," most common.\n")
-    occ_counts <- occ_counts[seq_len(max_species)] # Already sorted by number of occurances
+    occ_counts <- occ_counts[seq_len(max_species)] # Already sorted by number of occurrences
     taxa_found <- names(occ_counts)
   } else {
-    my_print("   Found occurances for ", length(taxa_found), " species.\n")
+    my_print("   Found occurrences for ", length(taxa_found), " species.\n")
   }
 
-  # Get full occurance data for each species
-  my_print("Looking up full occurance data for the ", length(taxa_found), " species found.")
+  # Get full occurrence data for each species
+  my_print("Looking up full occurrence data for the ", length(taxa_found), " species found.")
   progress_bar <- txtProgressBar(min = 0, max = length(taxa_found), style = 3)
   get_species_occ <- function(i) {
     result <- rgbif::occ_data(decimalLatitude = lat_range,
@@ -109,7 +109,7 @@ search_area <- function(lat_range,
   # Add root to the taxonomy
   species_occ_data$root <- "Life"
 
-  # Sort by number of occurances
+  # Sort by number of occurrences
   species_occ_data$occ_count <- as.numeric(table(species_occ_data$name)[species_occ_data$name])
   species_occ_data <- species_occ_data[order(species_occ_data$occ_count, decreasing = TRUE), ]
 
@@ -131,15 +131,16 @@ search_area <- function(lat_range,
 #'
 #' Return species for a coordinate and radius according to GBIF.
 #'
-#' @param long_range (\code{numeric} of length 2) The range of longitudes to search species occurance data for.
-#' @param lat_range (\code{numeric} of length 2) The range of latitudes to search species occurance data for.
+#' @param lat (\code{numeric} of length 2) The latitude to search species occurrence data for.
+#' @param long (\code{numeric} of length 2) The longitude to search species occurrence data for.
 #' @param radius (\code{numeric} of length 1) How far in kilometers from \code{place_name} to look for species.
-#' @param ... Passed to \code{\link{search_area}}
+#' @inheritParams search_area
 #'
 #' @return Path to the output file
 #'
 #' @export
-search_radius <- function(lat, long, radius = 40, ...) {
+search_radius <- function(lat, long, radius = 30, taxon = NULL,
+                          max_species = 50, max_occ = 500) {
   # Get range of coords to search
   location <- as.numeric(c(lat, long))
   lat_diff <- abs(radius / 110.574 / 2) # http://stackoverflow.com/questions/1253499/simple-calculations-for-working-with-lat-lon-km-distance
@@ -148,7 +149,8 @@ search_radius <- function(lat, long, radius = 40, ...) {
   long_range <- paste(location[2] - long_diff, location[2] + long_diff, sep = ",")
 
   # Search area
-  search_area(lat_range = lat_range, long_range = long_range, ...)
+  search_area(lat_range = lat_range, long_range = long_range, taxon = taxon,
+              max_species = max_species, max_occ = max_occ)
 }
 
 
@@ -157,7 +159,8 @@ search_radius <- function(lat, long, radius = 40, ...) {
 #' Uses a location name to make a pdf of wikipedia articles for all species found within a given radius according to GBIF.
 #'
 #' @param place_name (\code{character} of length 1) Where to search for species.
-#' @param ... Passed to \code{\link{search_radius}}
+#' @inheritParams search_radius
+#' @inheritParams search_area
 #'
 #' @return Path to the output file
 #'
@@ -167,11 +170,13 @@ search_radius <- function(lat, long, radius = 40, ...) {
 #' }
 #'
 #' @export
-search_place <- function(place_name, ...) {
+search_place <- function(place_name, radius = 30, taxon = NULL,
+                         max_species = 30, max_occ = 500) {
   my_print("Looking up location from Google Maps...")
   location <- suppressMessages(ggmap::geocode(place_name, output = "more", messaging = FALSE)[1, ])
   my_print('   Found "', location$address, '".\n')
 
   # Search place
-  search_radius(lat = location$lat, long = location$lon, ...)
+  search_radius(lat = location$lat, long = location$lon, radius = radius,
+                taxon = taxon, max_species = max_species, max_occ = max_occ)
 }
