@@ -32,22 +32,14 @@ search_area <- function(lat_range,
                         max_occ = 500) {
   # Internal parameters
   batch_size <- 30 # maximum is 300
-  cols_to_keep <- c("name", "key", "decimalLatitude", "decimalLongitude", "issues",
-                    "datasetKey", "publishingOrgKey", "publishingCountry", "protocol",
-                    "lastCrawled", "lastParsed", "crawlId", "basisOfRecord", "taxonKey",
+  cols_to_keep <- c("name", "decimalLatitude", "decimalLongitude", "taxonKey",
                     "kingdomKey", "phylumKey", "classKey", "orderKey", "familyKey",
                     "genusKey", "scientificName", "kingdom", "phylum", "order", "family",
-                    "genus", "genericName", "specificEpithet", "taxonRank", "dateIdentified",
-                    "year", "month", "day", "eventDate", "modified", "lastInterpreted",
-                    "references", "license", "geodeticDatum", "class", "countryCode",
-                    "country", "rightsHolder", "identifier", "verbatimEventDate",
-                    "datasetName", "verbatimLocality", "collectionCode", "gbifID",
-                    "occurrenceID", "taxonID", "catalogNumber", "recordedBy",
-                    "institutionCode", "rights", "identificationID")
+                    "genus", "genericName", "specificEpithet")
 
   # Search for species in range
   my_print("Searching for species observations",
-           ifelse(is.null(taxon), "...", paste0('for the taxon "', taxon, '"...')))
+           ifelse(is.null(taxon), "...", paste0(' for the taxon "', taxon, '"...')))
   taxa_found <- c()
   overall_occ_data <- NULL
   start <- 0
@@ -98,7 +90,7 @@ search_area <- function(lat_range,
                               limit = max_occ,
                               hasCoordinate = TRUE,
                               hasGeospatialIssue = FALSE)
-    result$data <- result$data[ , cols_to_keep]
+    result$data <- result$data[ , colnames(result$data) %in% cols_to_keep]
     result$data <- result$data[! is.na(result$data$name), ]
     setTxtProgressBar(progress_bar, i)
     return(result$data)

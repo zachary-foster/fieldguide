@@ -33,8 +33,9 @@ query_inat <- function(obj, max_img = 6) {
   my_print("   Found images for ", length(unique(inat_data$name)), " species.\n")
 
   # Add results to input object
-  inat <- dplyr::tibble(taxon_id = rep(names(species), vapply(raw_inat_data, nrow, numeric(1))),
-                        query = rep(species, vapply(raw_inat_data, nrow, numeric(1))))
+  row_counts <- vapply(raw_inat_data, function(x) ifelse(is.null(x), 0, nrow(x)), numeric(1))
+  inat <- dplyr::tibble(taxon_id = rep(names(species), row_counts),
+                        query = rep(species, row_counts))
   inat <- dplyr::as.tbl(cbind(inat, inat_data))
   obj$data$inat <- inat
 
