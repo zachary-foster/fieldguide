@@ -11,3 +11,6 @@ Imports: geonames,
     WikipediR,
     rgbif
 RoxygenNote: 6.0.1
+Suggests: knitr,
+    rmarkdown
+VignetteBuilder: knitr

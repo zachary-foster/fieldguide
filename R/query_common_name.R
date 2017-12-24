@@ -7,13 +7,14 @@
 #' @param db The database to look up common names from.
 #'
 #' @export
-get_common_name <- function(gbif_occ, db = "itis") {
+query_common_name <- function(gbif_occ, db = "itis") {
   # Get list of species to look up
   species <- unique(gbif_occ$data$occ$name)
   names(species) <- gbif_occ$data$occ$taxon_id[match(species, gbif_occ$data$occ$name)]
 
   # Get common name
-  my_print("Looking up common names from ", toupper(db), "...")
+  my_print("Looking up common names from ", toupper(db), " for ",
+           length(species), " species...")
   common_names <- taxize::sci2comm(species, db = db,
                                    verbose = FALSE, ask = FALSE, rows = 1)
   common_names <- lapply(common_names, Hmisc::capitalize)
@@ -24,7 +25,7 @@ get_common_name <- function(gbif_occ, db = "itis") {
                                      name = unlist(common_names))
   gbif_occ$data$common <- dplyr::as.tbl(gbif_occ$data$common)
 
-  my_print("   Found common names.\n")
+  my_print(paste0("   Found ", nrow(gbif_occ$data$common), " common names.\n"))
 
   return(gbif_occ)
 }

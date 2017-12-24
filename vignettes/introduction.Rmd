@@ -1,0 +1,28 @@
+---
+title: "Introduction"
+author: "Zachary Foster"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+### scratch
+
+```{r}
+library(fieldguide)
+data <- search_place("Salem", max_species = 10)
+data <- query_wikipedia(data)
+data <- query_inat(data)
+data <- query_common_name(data)
+```
+

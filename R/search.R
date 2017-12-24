@@ -136,7 +136,7 @@ search_radius <- function(lat, long, radius = 30, taxon = NULL,
   # Get range of coords to search
   location <- as.numeric(c(lat, long))
   lat_diff <- abs(radius / 110.574 / 2) # http://stackoverflow.com/questions/1253499/simple-calculations-for-working-with-lat-lon-km-distance
-  long_diff <- abs(radius / (111.32 * cos(location[2] * pi / 180)) / 2)
+  long_diff <- abs(radius / (111.32 * cos(location[1] * pi / 180)) / 2)
   lat_range <- paste(location[1] - lat_diff, location[1] + lat_diff, sep = ",")
   long_range <- paste(location[2] - long_diff, location[2] + long_diff, sep = ",")
 
