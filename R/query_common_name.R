@@ -6,6 +6,8 @@
 #'   The result of running search_* functions.
 #' @param db The database to look up common names from.
 #'
+#' @family query functions
+#'
 #' @export
 query_common_name <- function(gbif_occ, db = "itis") {
   # Get list of species to look up

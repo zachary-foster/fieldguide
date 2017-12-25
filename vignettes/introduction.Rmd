@@ -20,9 +20,9 @@ knitr::opts_chunk$set(
 
 ```{r}
 library(fieldguide)
-data <- search_place("Salem", max_species = 10)
-data <- query_wikipedia(data)
-data <- query_inat(data)
-data <- query_common_name(data)
+obj <- search_place("Salem", max_species = 10)
+obj <- query_wikipedia(obj)
+obj <- query_inat(obj)
+obj <- query_common_name(obj)
 ```
 

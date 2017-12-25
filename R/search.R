@@ -24,6 +24,8 @@
 #'
 #' @return Path to the output file
 #'
+#' @family query functions
+#'
 #' @export
 search_area <- function(lat_range,
                         long_range,
@@ -130,6 +132,8 @@ search_area <- function(lat_range,
 #'
 #' @return Path to the output file
 #'
+#' @family query functions
+#'
 #' @export
 search_radius <- function(lat, long, radius = 30, taxon = NULL,
                           max_species = 50, max_occ = 500) {
@@ -160,6 +164,8 @@ search_radius <- function(lat, long, radius = 30, taxon = NULL,
 #' \dontrun{
 #' search_place(place_name = "prineville reservoir")
 #' }
+#'
+#' @family query functions
 #'
 #' @export
 search_place <- function(place_name, radius = 30, taxon = NULL,

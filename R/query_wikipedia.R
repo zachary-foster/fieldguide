@@ -6,6 +6,8 @@
 #'
 #' @param obj A \code{\link{taxmap}} object produced from \code{search_*} functions.
 #'
+#' @family query functions
+#'
 #' @export
 query_wikipedia <- function(obj) {
 

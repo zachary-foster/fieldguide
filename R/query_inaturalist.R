@@ -5,6 +5,8 @@
 #' @param obj A \code{\link{taxmap}} object produced from \code{search_*} functions.
 #' @param max_img The maximum number of images per taxon to return
 #'
+#' @family query functions
+#'
 #' @export
 query_inat <- function(obj, max_img = 6) {
   # Get list of species to look up
