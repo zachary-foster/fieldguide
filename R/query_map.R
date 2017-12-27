@@ -75,7 +75,11 @@ query_overall_map <- function(obj, max_colors = 8) {
 #' @family query functions
 #'
 #' @export
-query_species_map <- function(obj) {
+query_sp_maps <- function(obj) {
+  # Get list of species to look up
+  species <- unique(obj$data$occ$name)
+  names(species) <- obj$data$occ$taxon_id[match(species, obj$data$occ$name)]
+
   coord_range <- function(x) as.numeric(strsplit(x, split = ",")[[1]])
   mean_coord <- function(x) mean(coord_range(x))
   coord_diff <- function(x) diff(coord_range(x))
@@ -85,25 +89,39 @@ query_species_map <- function(obj) {
                               zoom = radius_to_zoom(radius), maptype = "terrain")
 
 
-  sp_data <- obj$data$occ[obj$data$occ$name == unique(obj$data$occ$name )[6], ]
-  ggmap::ggmap(map, base_layer = ggplot2::ggplot(data = sp_data), extent = "normal", maprange = FALSE) +
-    ggplot2::coord_map(projection = "mercator",
-                       xlim = coord_range(obj$data$long_range),
-                       ylim = coord_range(obj$data$lat_range)) +
-    ggplot2::stat_density2d(mapping = ggplot2::aes(x = decimalLongitude,
-                                                   y = decimalLatitude,
-                                                   alpha = ..level..),
-                            bins = 5,
-                            size = 1,
-                            n = 300, # number of grid points in each direction
-                            geom = 'polygon') +
-    ggplot2::scale_alpha_continuous(limits = c(0, 100), breaks = seq(0, 100, length.out = 6)) +
-    ggplot2::geom_point(mapping = ggplot2::aes_string(x = "decimalLongitude",
-                                                      y = "decimalLatitude"),
-                        alpha = .2,
-                        size = 1) +
-    ggplot2::xlab("Longitude") +
-    ggplot2::ylab("Latitude")
 
+  output <- lapply(species, function(sp_name) {
+    sp_data <- subset(obj$data$occ, name == sp_name)
+    result <- ggmap::ggmap(map, base_layer = ggplot2::ggplot(data = sp_data),
+                 extent = "normal", maprange = FALSE) +
+      ggplot2::coord_map(projection = "mercator",
+                         xlim = coord_range(obj$data$long_range),
+                         ylim = coord_range(obj$data$lat_range)) +
+      ggplot2::stat_density2d(data = sp_data,
+                              mapping = ggplot2::aes(x = decimalLongitude,
+                                                     y = decimalLatitude,
+                                                     alpha = ..level..),
+                              bins = 5,
+                              n = 300, # number of grid points in each direction,
+                              h = c(.1, .1 * coord_diff(obj$data$lat_range) /  coord_diff(obj$data$long_range)),
+                              geom = 'polygon') +
+      ggplot2::scale_alpha(range = c(.1, .5), guide = FALSE) +
+      ggplot2::geom_point(data = sp_data,
+                          mapping = ggplot2::aes_string(x = "decimalLongitude",
+                                                        y = "decimalLatitude"),
+                          alpha = .1,
+                          size = 4) +
+      ggplot2::xlab("Longitude") +
+      ggplot2::ylab("Latitude") +
+      ggplot2::theme(axis.title = ggplot2::element_blank(),
+                     axis.text = ggplot2::element_blank(),
+                     axis.ticks = ggplot2::element_blank())
+    return(result)
+  })
+
+
+  obj$data$sp_maps <- result
+
+  return(obj)
 }
 
