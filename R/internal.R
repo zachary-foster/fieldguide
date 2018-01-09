@@ -82,3 +82,23 @@ my_print <- function(...) {
   message(text)
 }
 
+
+#' Format text for a file name
+#'
+#' Format text for a file name
+#'
+#' @param text text to format
+#'
+#' @keywords internal
+text_to_file_name <- function(text) {
+  # Make lower case
+  text <- tolower(text)
+
+  # Replace spaces
+  text <- gsub(text, pattern = " ", replacement = "_")
+
+  # Remove invalid characters
+  text <- gsub(text, pattern = "[#<>$%!&*\"'{}:/\\@]*", replacement = "")
+
+  return(text)
+}
