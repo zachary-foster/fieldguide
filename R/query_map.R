@@ -37,7 +37,7 @@ query_overall_map <- function(obj, max_colors = 8) {
 
   color_to_use <-  c(rev(RColorBrewer::brewer.pal(max_colors - 1, "Set1")), "#888888")
 
-  ggmap::ggmap(map, extent = "normal", maprange = FALSE) +
+  the_map <- ggmap::ggmap(map, extent = "normal", maprange = FALSE) +
     ggplot2::geom_point(data = sp_data,
                         mapping = ggplot2::aes_string(x = "decimalLongitude",
                                                       y = "decimalLatitude",
@@ -61,6 +61,9 @@ query_overall_map <- function(obj, max_colors = 8) {
                    plot.background = ggplot2::element_rect(fill = "transparent", color = NA),
                    legend.key = ggplot2::element_rect(fill = "transparent", colour = "transparent"))
 
+
+  obj$data$overall_map <- the_map
+  return(obj)
 }
 
 

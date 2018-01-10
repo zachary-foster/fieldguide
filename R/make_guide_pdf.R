@@ -6,6 +6,7 @@
 #'
 #' @param obj A \code{\link{taxmap}} object produced from \code{search_*}
 #'   functions.
+#' @param description A sentance to a few paragraphs describing the guide.
 #' @param about If \code{TRUE}, add a page descibing how this guide was made.
 #' @param contents If \code{TRUE}, add a table of contents.
 #' @param map If \code{TRUE}, add the overall species occurence map.
@@ -36,6 +37,7 @@
 #' @export
 make_guide_pdf <- function(obj,
                            title = "Custom Field Guide",
+                           description = NULL,
                            cover = "basic",
                            about = TRUE,
                            contents = TRUE,
@@ -77,17 +79,42 @@ make_guide_pdf <- function(obj,
     }
   }
 
+  # Get figure path
+  figure_dir_name <- "fieldguide_figures"
+  figure_dir <- file.path(out_dir, figure_dir_name)
+  dir.create(figure_dir)
 
   # Make cover
   if (! (is.null(cover) | is.na(cover))) {
     content <- c(content, cover = simple_pdf_cover(title, cover))
   }
 
-  # Make about section
-
   # Make table of contents
+  if (about) {
+    content <- c(content,
+                 "\\tableofcontents")
+  }
+
+  # Make about section
+  if (about) {
+    content <- c(content,
+                 "\\section{About this guide}",
+                 "The guide was produced using the R pacakge `fieldguide` by compiling data from free public databases automatically.",
+                 "The information might contain errors.",
+                 "If you find an error or omission, consider trying to update the source database and rebuild the guide.")
+  }
 
   # Make overall map
+  if (map) {
+    overall_map_name <- "overall_map.png"
+    overall_map_path <- file.path(figure_dir, overall_map_name)
+    ggplot2::ggsave(obj$data$overall_map,
+                    path = figure_dir,
+                    width = 7.5, units = "in",
+                    filename = overall_map_name)
+    content <- c(content,
+                 "\\includegraphics[width=\\textwidth]{overall_map}")
+  }
 
   # Make overall taxonomy
 
@@ -106,7 +133,11 @@ make_guide_pdf <- function(obj,
   # Make guide source
   header <- paste(sep = "\n",
                   "\\documentclass{article}",
-                  "",
+                  "\\usepackage[margin=0.5in]{geometry}",
+                  "\\usepackage[utf8]{inputenc}",
+                  "\\usepackage{graphicx}",
+                  paste0("\\graphicspath{ {", figure_dir_name,  .Platform$file.sep, "} }"),
+                  paste0("\\title{", title, "}\n"),
                   "\\begin{document}",
                   "")
   footer <-  paste(sep = "\n",
@@ -130,8 +161,8 @@ make_guide_pdf <- function(obj,
 
   # Open guide
   if (open) {
-    system2("see", output_pdf_path, stdout = FALSE, stderr = FALSE)
-    system2("open", output_pdf_path, stdout = FALSE, stderr = FALSE)
+    system2("see", output_pdf_path, stdout = FALSE, stderr = FALSE, wait = FALSE)
+    system2("open", output_pdf_path, stdout = FALSE, stderr = FALSE, wait = FALSE)
   }
 
   # Print output file
@@ -161,12 +192,15 @@ make_guide_pdf <- function(obj,
 simple_pdf_cover <- function(title, cover) {
   cover <- tolower(cover)
   if (cover == "basic") {
+    # content <- paste(sep = "\n",
+    #                  "\\topskip0pt",
+    #                  "\\vspace*{\\fill}",
+    #                  title,
+    #                  "\\vspace*{\\fill}",
+    #                  "%")
     content <- paste(sep = "\n",
-                     "\\topskip0pt",
-                     "\\vspace*{\\fill}",
-                     title,
-                     "\\vspace*{\\fill}",
-                     "%")
+                     "\\maketitle\n",
+                     "\\newpage")
   } else {
     stop(call. = FALSE, paste0('Unknown cover style "', cover, '".'))
   }
