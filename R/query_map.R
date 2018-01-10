@@ -52,7 +52,8 @@ query_overall_map <- function(obj, max_colors = 8) {
     ggplot2::xlab("Longitude") +
     ggplot2::ylab("Latitude") +
     ggplot2::guides(color = ggplot2::guide_legend(title = "Most common species",
-                                                  override.aes = list(alpha = 1))) +
+                                                  override.aes = list(alpha = 1),
+                                                  nrow = 2, byrow = TRUE)) +
     ggplot2::theme(legend.background = ggplot2::element_rect(fill = "#AAAAAA",
                                                              size = 0.5, linetype = "solid",
                                                              colour = "#222222"),

@@ -52,8 +52,14 @@ make_guide_pdf <- function(obj,
                            out_name = NULL,
                            out_dir = NULL,
                            open = FALSE) {
+  # Get list of species to use
+  species <- unique(obj$data$occ$name)
+  names(species) <- obj$data$occ$taxon_id[match(species, obj$data$occ$name)]
+
+  # Prepare variables that will store output source
   content <- character(0)
-  sp_content <- list()
+  sp_content <- lapply(names(species), function(x) character(0))
+  names(sp_content) <- names(species)
 
   # Parse output name options
   if (is.null(out_name)) {
@@ -98,29 +104,80 @@ make_guide_pdf <- function(obj,
   # Make about section
   if (about) {
     content <- c(content,
+                 "\\newpage",
                  "\\section{About this guide}",
                  "The guide was produced using the R pacakge `fieldguide` by compiling data from free public databases automatically.",
                  "The information might contain errors.",
-                 "If you find an error or omission, consider trying to update the source database and rebuild the guide.")
+                 "If you find an error or omission, consider trying to update the source database and rebuild the guide.",
+                 "There are a lot of people around, so small contributions to public database really add up over time.",
+                 "If you find this guide or the `fieldguide` R package useful, you can thank me by posting a photo to iNaturalist or improving a Wikipedia page that interests you.",
+                 "If you have any feedback on how to make the `fieldguide` package better, consider submitting an issue to https://github.com/zachary-foster/fieldguide/issues.",
+                 "This is an open source project and we welcome contributions!",
+                 "\n\nI hope you have a great time exploring!",
+                 "\n   - Zachary Foster",
+                 "\\newpage")
   }
 
   # Make overall map
   if (map) {
-    overall_map_name <- "overall_map.png"
-    overall_map_path <- file.path(figure_dir, overall_map_name)
+    overall_map_name <- "overall_map"
+    overall_map_path <- file.path(figure_dir, paste0(overall_map_name, ".png"))
     ggplot2::ggsave(obj$data$overall_map,
                     path = figure_dir,
-                    width = 7.5, units = "in",
-                    filename = overall_map_name)
+                    width = 8.5, units = "in",
+                    scale = 1,
+                    filename = paste0(overall_map_name, ".png"))
     content <- c(content,
-                 "\\includegraphics[width=\\textwidth]{overall_map}")
+                 "\\newpage",
+                 "\\section{Overall occurrence map}",
+                 "This map was made using occurrence data from iNaturalist for the most common species found.",
+                 "The backgound image was downloaded from Google Maps.",
+                 "\\begin{center}",
+                 paste0("  \\makebox[\\textwidth]{\\includegraphics[width=1.1\\paperwidth]{", overall_map_name, "}}"),
+                 "\\end{center}",
+                 "\\newpage")
   }
 
   # Make overall taxonomy
+  if (taxonomy) {
+    tax_fig_name <- "overall_taxonomy"
+    tax_fig_path <- file.path(figure_dir, paste0(tax_fig_name, ".png"))
+    tax_figure <- metacoder::heat_tree(obj,
+                         node_label = taxon_names,
+                         node_size = n_subtaxa + 1,
+                         node_color = n_obs,
+                         node_color_axis_label = "Number of occurrences",
+                         output_file = tax_fig_path)
+    content <- c(content,
+                 "\\newpage",
+                 "\\section{Taxonomy of species in this guide}",
+                 "This information comes from occurrence data downloaded from GBIF.",
+                 "\\begin{center}",
+                 paste0("  \\makebox[\\textwidth]{\\includegraphics[width=\\linewidth]{", tax_fig_name, "}}"),
+                 "\\end{center}",
+                 "\\newpage")
+  }
+
+  # Make section for species information
+  content <- c(content,
+               "\\section{Species information}")
 
   # Make header for each species
+  lapply(names(sp_content), function(n) {
+    sp_name <- obj$data$occ$name[obj$data$occ$taxon_id == n][1]
+    my_content <- paste(sep = "\n",
+                        "\\newpage",
+                        paste0("\\subsection{", sp_name, "}"))
+    sp_content[[n]] <<- c(sp_content[[n]], title = my_content)
+  })
 
   # Make taxonomy for each species
+  sp_classifications <- obj$classifications(sep = " $>$ ")[names(sp_content)]
+  lapply(names(sp_content), function(n) {
+    my_content <- paste(sep = "\n",
+                        paste0("Taxonomy: \\textbf{", sp_classifications[n], "}"))
+    sp_content[[n]] <<- c(sp_content[[n]], taxonomy = my_content)
+  })
 
   # Make map for each species
 
@@ -133,7 +190,7 @@ make_guide_pdf <- function(obj,
   # Make guide source
   header <- paste(sep = "\n",
                   "\\documentclass{article}",
-                  "\\usepackage[margin=0.5in]{geometry}",
+                  "\\usepackage[margin=1in]{geometry}",
                   "\\usepackage[utf8]{inputenc}",
                   "\\usepackage{graphicx}",
                   paste0("\\graphicspath{ {", figure_dir_name,  .Platform$file.sep, "} }"),
@@ -146,6 +203,7 @@ make_guide_pdf <- function(obj,
   raw_source <- paste(sep = "\n",
                       header,
                       paste0(content, collapse = "\n"),
+                      paste0(unlist(sp_content), collapse = "\n"),
                       footer)
   source_name <- paste0(out_name, ".Rnw")
   source_path <- file.path(out_dir, source_name)

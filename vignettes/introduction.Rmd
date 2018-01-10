@@ -24,6 +24,7 @@ obj <- search_place("Salem, OR", max_species = 5) %>%
   query_wikipedia() %>%
   query_inat() %>%
   query_common_name() %>%
-  query_overall_map()
+  query_overall_map() %>%
+  query_sp_maps()
 ```
 
