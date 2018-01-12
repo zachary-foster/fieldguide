@@ -143,11 +143,11 @@ make_guide_pdf <- function(obj,
     tax_fig_name <- "overall_taxonomy"
     tax_fig_path <- file.path(figure_dir, paste0(tax_fig_name, ".png"))
     tax_figure <- metacoder::heat_tree(obj,
-                         node_label = taxon_names,
-                         node_size = n_subtaxa + 1,
-                         node_color = n_obs,
-                         node_color_axis_label = "Number of occurrences",
-                         output_file = tax_fig_path)
+                                       node_label = taxon_names,
+                                       node_size = n_subtaxa + 1,
+                                       node_color = n_obs,
+                                       node_color_axis_label = "Number of occurrences",
+                                       output_file = tax_fig_path)
     content <- c(content,
                  "\\newpage",
                  "\\section{Taxonomy of species in this guide}",
@@ -172,24 +172,110 @@ make_guide_pdf <- function(obj,
   })
 
   # Make taxonomy for each species
-  sp_classifications <- obj$classifications(sep = " $>$ ")[names(sp_content)]
-  lapply(names(sp_content), function(n) {
-    my_content <- paste(sep = "\n",
-                        paste0("Taxonomy: \\textbf{", sp_classifications[n], "}"))
-    sp_content[[n]] <<- c(sp_content[[n]], taxonomy = my_content)
-  })
+  if (sp_taxonomy) {
+    sp_classifications <- obj$classifications(sep = " $>$ ")[names(sp_content)]
+    lapply(names(sp_content), function(n) {
+      my_content <- paste(sep = "\n",
+                          paste0("Taxonomy: \\textbf{", sp_classifications[n], "}"))
+      sp_content[[n]] <<- c(sp_content[[n]], taxonomy = my_content)
+    })
+  }
 
   # Make map for each species
+  if (sp_map) {
+    lapply(names(sp_content), function(n) {
+      sp_map_name <- paste0("sp_map_", n)
+      sp_map_path <- file.path(figure_dir, paste0(sp_map_name, ".png"))
+      ggplot2::ggsave(obj$data$sp_maps[[n]],
+                      path = figure_dir,
+                      width = 8.5, units = "in",
+                      scale = 1,
+                      filename = paste0(sp_map_name, ".png"))
+      species_name <- obj$data$inat$scientific_name[obj$data$inat$taxon_id == n][1]
+      my_content <- c("\\begin{figure}[h]",
+                      paste0("  \\makebox[\\columnwidth][c]{\\includegraphics[width=1.2\\columnwidth]{", sp_map_name, "}}"),
+                      paste0("\\caption{ Map of ", species_name, " occurences from GBIF observation records}"),
+                      "\\end{figure}")
+      sp_content[[n]] <<- c(sp_content[[n]], map = my_content)
+    })
+
+  }
 
   # Make photo code for each species
+  if (sp_photo) {
+    lapply(names(sp_content), function(n) {
+      # Get image URLs
+      available_urls <- obj$data$inat$image_url[obj$data$inat$taxon_id == n]
+      img_urls <- available_urls[1:min(c(length(available_urls), sp_photo_max))]
+
+      # Get place to save images
+      # sp_photo_names <- paste0("sp_photo_", n, "_", seq_along(img_urls))
+      # sp_photo_paths <- file.path(figure_dir, paste0(sp_photo_names, ".jpg")) # not always jpg
+
+      # Download images
+      # download_inat_images(img_urls, sp_photo_paths)
+
+      # Make code to display images
+      img_grid_name <- paste0("sp_photo_", n, "_combined")
+      img_grid_path <- file.path(figure_dir, paste0(img_grid_name, ".jpg"))
+      image_plot <- image_grid(urls = img_urls)
+      cowplot::save_plot(filename = img_grid_path, plot = image_plot)
+      species_name <- obj$data$inat$scientific_name[obj$data$inat$taxon_id == n][1]
+
+      my_content <- c("\\begin{figure}[p]",
+                      paste0("  \\makebox[\\columnwidth][c]{\\includegraphics[width=1.3\\columnwidth]{", img_grid_name, "}}"),
+                      paste0("\\caption{ Photos of ", species_name, " from iNaturalist}"),
+                      "\\end{figure}")
+
+      # my_content <- paste(sep = "\n",
+      #                     "\\begin{figure}[ht!]",
+      #                     "  \\begin{center}",
+      #                     "%",
+      #
+      #                     paste(collapse = "\n", sep = "\n",
+      #                            "    \\subfigure[Cap]{%",
+      #                            paste0("      \\includegraphics[width=0.4\\textwidth]{", sp_photo_names, "}"),
+      #                            "    }%"),
+      #
+      #                     "%",
+      #                     "  \\end{center}",
+      #                     "\\end{figure}\n")
+
+      sp_content[[n]] <<- c(sp_content[[n]], photos = my_content)
+    })
+
+  }
 
   # Make wikipedia content for each species
+  header_key <- c("1" = "\\subsection",
+                  "2" = "\\subsubsection",
+                  "3" = "\\paragraph")
+
+  if (sp_wiki) {
+    lapply(names(sp_content), function(n) {
+      sp_wiki_data <- obj$data$wiki[obj$data$wiki$taxon_id == n, ]
+      sp_wiki_data$content <- trimws(sp_wiki_data$content)
+      sp_wiki_data <- sp_wiki_data[sp_wiki_data$content != "", ] # remove empty sections
+      if (nrow(sp_wiki_data) > 0) {
+        sp_wiki_data$headers <- paste0(header_key[as.character(sp_wiki_data$title_level)], "*{", sp_wiki_data$title, "}")
+        sp_wiki_data$latex <- paste0(sp_wiki_data$headers, "\n", sp_wiki_data$content)
+
+        my_content <- paste0(sp_wiki_data$latex, collapse = "\n")
+        sp_content[[n]] <<- c(sp_content[[n]], taxonomy = my_content)
+      }
+    })
+  }
 
 
 
   # Make guide source
   header <- paste(sep = "\n",
                   "\\documentclass{article}",
+                  "\\usepackage{subfigure}",
+                  "\\usepackage{alphalph}",
+                  "\\renewcommand*{\\thesubfigure}{%",
+                  "  \\alphalph{\\value{subfigure}}%",
+                  "}%",
                   "\\usepackage[margin=1in]{geometry}",
                   "\\usepackage[utf8]{inputenc}",
                   "\\usepackage{graphicx}",

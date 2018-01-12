@@ -102,3 +102,20 @@ text_to_file_name <- function(text) {
 
   return(text)
 }
+
+
+#' Download image from iNat
+#'
+#' Download image from iNat
+#'
+#' @param url The url to the image
+#' @param save_path Where to save it
+#'
+#' @keywords internal
+download_inat_images <- function(url, save_path) {
+  mapply(function(a_url, a_path) {
+    download.file(a_url, destfile = a_path, quiet = TRUE)
+  },
+  url, save_path)
+
+}

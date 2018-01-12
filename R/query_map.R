@@ -92,12 +92,10 @@ query_sp_maps <- function(obj) {
   map <- ggmap::get_googlemap(center = c(mean_coord(obj$data$long_range), mean_coord(obj$data$lat_range)),
                               zoom = radius_to_zoom(radius), maptype = "terrain")
 
-
-
-  output <- lapply(species, function(sp_name) {
+  make_one_map <-  function(sp_name) {
     sp_data <- subset(obj$data$occ, name == sp_name)
-    result <- ggmap::ggmap(map, base_layer = ggplot2::ggplot(data = sp_data),
-                 extent = "normal", maprange = FALSE) +
+    result <- ggmap::ggmap(map, # base_layer = ggplot2::ggplot(data = sp_data),
+                           extent = "normal", maprange = FALSE) +
       ggplot2::coord_map(projection = "mercator",
                          xlim = coord_range(obj$data$long_range),
                          ylim = coord_range(obj$data$lat_range)) +
@@ -121,10 +119,12 @@ query_sp_maps <- function(obj) {
                      axis.text = ggplot2::element_blank(),
                      axis.ticks = ggplot2::element_blank())
     return(result)
-  })
+  }
+
+  output <- lapply(species, make_one_map)
 
 
-  obj$data$sp_maps <- result
+  obj$data$sp_maps <- output
 
   return(obj)
 }

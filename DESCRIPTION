@@ -10,7 +10,9 @@ LazyData: TRUE
 Imports: geonames,
     WikipediR,
     rgbif,
-    magrittr
+    magrittr,
+    ggmap,
+    ggplot2
 RoxygenNote: 6.0.1
 Suggests: knitr,
     rmarkdown
