@@ -13,7 +13,7 @@ query_inat <- function(obj, max_img = 6) {
   species <- unique(obj$data$occ$name)
   names(species) <- obj$data$occ$taxon_id[match(species, obj$data$occ$name)]
 
-  #
+  # Look up images
   my_print("Looking up image URLs from iNaturalist...")
   progress_bar <- txtProgressBar(min = 0, max = length(species), style = 3)
   raw_inat_data <- lapply(seq_len(length(species)), function(i) {

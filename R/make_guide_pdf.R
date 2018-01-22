@@ -51,7 +51,8 @@ make_guide_pdf <- function(obj,
                            sp_wiki = "wiki" %in% names(obj$data),
                            out_name = NULL,
                            out_dir = NULL,
-                           open = FALSE) {
+                           open = FALSE,
+                           overwrite = TRUE) {
   # Get list of species to use
   species <- unique(obj$data$occ$name)
   names(species) <- obj$data$occ$taxon_id[match(species, obj$data$occ$name)]
@@ -80,7 +81,7 @@ make_guide_pdf <- function(obj,
     if (overwrite) {
       message(paste0('Replacing existing output at "', output_pdf_path, '"'))
     } else {
-      stop(paste0('File "', source_dir, '" already exists.\n',
+      stop(paste0('File "', out_dir, '" already exists.\n',
                   '  Set "overwrite" to TRUE to replace the file'))
     }
   }
@@ -88,7 +89,7 @@ make_guide_pdf <- function(obj,
   # Get figure path
   figure_dir_name <- "fieldguide_figures"
   figure_dir <- file.path(out_dir, figure_dir_name)
-  dir.create(figure_dir)
+  dir.create(figure_dir, showWarnings = FALSE)
 
   # Make cover
   if (! (is.null(cover) | is.na(cover))) {
@@ -176,10 +177,22 @@ make_guide_pdf <- function(obj,
     sp_classifications <- obj$classifications(sep = " $>$ ")[names(sp_content)]
     lapply(names(sp_content), function(n) {
       my_content <- paste(sep = "\n",
-                          paste0("Taxonomy: \\textbf{", sp_classifications[n], "}"))
+                          paste0("\\textbf{Taxonomy:} ", sp_classifications[n]))
       sp_content[[n]] <<- c(sp_content[[n]], taxonomy = my_content)
     })
   }
+
+  # List common names for each species
+  if (sp_common) {
+    lapply(names(sp_content), function(n) {
+      my_names <- obj$data$common$name[obj$data$common$taxon_id == n]
+      my_names <- unique(my_names)
+      my_content <- paste(sep = "\n",
+                          paste0("\\textbf{Common names:} ", paste0(my_names, collapse = ", ")))
+      sp_content[[n]] <<- c(sp_content[[n]], common_names = my_content)
+    })
+  }
+
 
   # Make map for each species
   if (sp_map) {
@@ -204,44 +217,33 @@ make_guide_pdf <- function(obj,
   # Make photo code for each species
   if (sp_photo) {
     lapply(names(sp_content), function(n) {
+
+      # Get species data
+      sp_data <- obj$data$inat[obj$data$inat$taxon_id == n, ]
+
       # Get image URLs
-      available_urls <- obj$data$inat$image_url[obj$data$inat$taxon_id == n]
-      img_urls <- available_urls[1:min(c(length(available_urls), sp_photo_max))]
+      sp_data <- sp_data[sp_data$image_url != "", ]
+      sp_data <- sp_data[seq_len(min(c(nrow(sp_data), sp_photo_max))), ]
 
-      # Get place to save images
-      # sp_photo_names <- paste0("sp_photo_", n, "_", seq_along(img_urls))
-      # sp_photo_paths <- file.path(figure_dir, paste0(sp_photo_names, ".jpg")) # not always jpg
+      if (length(img_urls) > 0) {
+        # Get place to save images
+        sp_photo_names <- paste0("sp_photo_", n, "_", seq_len(nrow(sp_data)))
+        sp_photo_paths <- file.path(figure_dir, paste0(sp_photo_names, ".jpg")) # not always jpg
 
-      # Download images
-      # download_inat_images(img_urls, sp_photo_paths)
+        # Download images
+        download_inat_images(sp_data$image_url, sp_photo_paths)
 
-      # Make code to display images
-      img_grid_name <- paste0("sp_photo_", n, "_combined")
-      img_grid_path <- file.path(figure_dir, paste0(img_grid_name, ".jpg"))
-      image_plot <- image_grid(urls = img_urls)
-      cowplot::save_plot(filename = img_grid_path, plot = image_plot)
-      species_name <- obj$data$inat$scientific_name[obj$data$inat$taxon_id == n][1]
+        # Make caption
+        common_name <- names(sort(table(sp_data$common_name), decreasing = TRUE)[1])
+        sp_caption <- paste0("Images of \\textit{", species[n], "} (", common_name, ") from iNaturalist.")
 
-      my_content <- c("\\begin{figure}[p]",
-                      paste0("  \\makebox[\\columnwidth][c]{\\includegraphics[width=1.3\\columnwidth]{", img_grid_name, "}}"),
-                      paste0("\\caption{ Photos of ", species_name, " from iNaturalist}"),
-                      "\\end{figure}")
+        # Make subcaptions
+        sp_subcaptions <- paste0("Observed on ", sp_data$observed_on, " by ", sp_data$user_login)
+        sp_subcaptions <- paste0(sp_subcaptions,
+                                 ifelse(sp_data$license == "", "", paste0(" (", sp_data$license, ")")))
 
-      # my_content <- paste(sep = "\n",
-      #                     "\\begin{figure}[ht!]",
-      #                     "  \\begin{center}",
-      #                     "%",
-      #
-      #                     paste(collapse = "\n", sep = "\n",
-      #                            "    \\subfigure[Cap]{%",
-      #                            paste0("      \\includegraphics[width=0.4\\textwidth]{", sp_photo_names, "}"),
-      #                            "    }%"),
-      #
-      #                     "%",
-      #                     "  \\end{center}",
-      #                     "\\end{figure}\n")
-
-      sp_content[[n]] <<- c(sp_content[[n]], photos = my_content)
+        image_grid_latex(image_paths = sp_photo_paths, caption = sp_caption, sub_captions = sp_subcaptions)
+      }
     })
 
   }
@@ -259,8 +261,11 @@ make_guide_pdf <- function(obj,
       if (nrow(sp_wiki_data) > 0) {
         sp_wiki_data$headers <- paste0(header_key[as.character(sp_wiki_data$title_level)], "*{", sp_wiki_data$title, "}")
         sp_wiki_data$latex <- paste0(sp_wiki_data$headers, "\n", sp_wiki_data$content)
-
         my_content <- paste0(sp_wiki_data$latex, collapse = "\n")
+
+        # Escape latex special characters
+        my_content <- gsub(my_content, pattern = "&", replacement = "\\&", fixed = TRUE)
+
         sp_content[[n]] <<- c(sp_content[[n]], taxonomy = my_content)
       }
     })
@@ -272,6 +277,8 @@ make_guide_pdf <- function(obj,
   header <- paste(sep = "\n",
                   "\\documentclass{article}",
                   "\\usepackage{subfigure}",
+                  "\\usepackage{caption}",
+                  "\\usepackage{subcaption}",
                   "\\usepackage{alphalph}",
                   "\\renewcommand*{\\thesubfigure}{%",
                   "  \\alphalph{\\value{subfigure}}%",
@@ -350,4 +357,45 @@ simple_pdf_cover <- function(title, cover) {
   }
 
   return(content)
+}
+
+
+#' Create latex for images
+#'
+#' Create latex code to display images in a compound figure.
+#'
+#' @param image_paths The file path to images to render
+#' @param sub_captions What to print under each image
+#' @param caption What to print under the everything
+#'
+#' @keywords internal
+image_grid_latex <- function(image_paths, caption, sub_captions, scale = 0.98) {
+
+  # Edge cases
+  if (length(image_paths) <= 0) {
+    return("")
+  }
+
+  # Get number of columns
+
+  # Get species name
+
+
+  # Calculate layout parameters
+  n_cols <- round(sqrt(length(image_paths)))
+  col_width <- (1 / n_cols) * scale
+  output <- paste(sep = "\n",
+         "\\begin{figure}",
+         "\\captionsetup[subfigure]{labelformat=empty}",
+         "\\centering",
+         paste(sep = "\n", collapse = "\\hfill",
+               paste0("   \\begin{subfigure}[b]{", col_width, "\\textwidth}"),
+               "      \\centering",
+               paste0("      \\includegraphics[width=\\linewidth]{", image_paths, "}"),
+               paste0("      \\caption{{\\footnotesize ", sub_captions, "}}"),
+               "      \\label{fig:gull}",
+               "    \\end{subfigure}"),
+         paste0("   \\caption{", caption, "}\\label{fig:animals}"),
+         "\\end{figure}")
+
 }

@@ -19,6 +19,8 @@ query_common_name <- function(gbif_occ, db = "itis") {
            length(species), " species...")
   common_names <- taxize::sci2comm(species, db = db,
                                    verbose = FALSE, ask = FALSE, rows = 1)
+
+  common_names <- lapply(common_names, function(x) as.character(x[!is.na(x)]))
   common_names <- lapply(common_names, Hmisc::capitalize)
   common_names <- lapply(common_names, unique)
   gbif_occ$data$common <- data.frame(stringsAsFactors = FALSE,

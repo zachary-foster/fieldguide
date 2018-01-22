@@ -20,7 +20,7 @@ knitr::opts_chunk$set(
 
 ```{r}
 library(fieldguide)
-obj <- search_place("Salem, OR", max_species = 5) %>%
+obj <- search_place("Sunriver, OR", max_species = 10) %>%
   query_wikipedia() %>%
   query_inat() %>%
   query_common_name() %>%
